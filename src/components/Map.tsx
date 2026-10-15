@@ -133,7 +133,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
         mapRef.current?.flyTo({ center: [109.1535, 11.9131], zoom: 15, duration: 2000 });
         break;
       case 'dc21':
-        mapRef.current?.flyTo({ center: [109.1508, 11.9142], zoom: 17.5, duration: 2000 });
+        mapRef.current?.flyTo({ center: [109.1526, 11.9132], zoom: 17.5, duration: 2000 });
         break;
     }
   };
@@ -314,10 +314,10 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
           type="image" 
           url="/Map/dc21_map.webp"
           coordinates={[
-            [109.149205, 11.915827], // Top-Left (NW)
-            [109.152418, 11.915817], // Top-Right (NE)
-            [109.152407, 11.912653], // Bottom-Right (SE)
-            [109.149195, 11.912663], // Bottom-Left (SW)
+            [109.150985, 11.914792], // Top-Left (NW)
+            [109.154198, 11.914782], // Top-Right (NE)
+            [109.154187, 11.911618], // Bottom-Right (SE)
+            [109.150975, 11.911628], // Bottom-Left (SW)
           ]}
         >
           <Layer 
@@ -750,7 +750,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
                   type="button"
                   onClick={() => {
                     if (opacityDc21 === 0) setOpacityDc21(0.7);
-                    mapRef.current?.flyTo({ center: [109.1508, 11.9142], zoom: 17.5, duration: 2000 });
+                    mapRef.current?.flyTo({ center: [109.1526, 11.9132], zoom: 17.5, duration: 2000 });
                   }}
                   className="px-2 py-0.5 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded text-[10px] font-medium border border-rose-200 flex items-center gap-0.5"
                 >
