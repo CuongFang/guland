@@ -32,7 +32,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
   const [streetMapOpacity, setStreetMapOpacity] = useState(0); // Độ mờ lớp Bản đồ Đường phố (OSM Map)
   
   // 5 Lớp Bản đồ Quy hoạch & Địa chính Cam Ranh
-  const [opacity2030, setOpacity2030] = useState(0); // Kế hoạch SDĐ 2030 (1/25.000)
+  const [opacity2030, setOpacity2030] = useState(0.7); // Mặc định mở Kế hoạch SDĐ 2030 (70%) để thấy ngay quy hoạch khi load trang
   const [opacity2045, setOpacity2045] = useState(0); // QHC Cam Ranh 2045 (1/10.000)
   const [opacityKhuVuc1, setOpacityKhuVuc1] = useState(0); // Phân khu 1/2000 Khu vực 1
   const [opacityDocDuong34, setOpacityDocDuong34] = useState(0); // 1/500 Dọc đường 3/4
@@ -53,7 +53,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       navigator.geolocation.getCurrentPosition((position) => {
         const { latitude, longitude } = position.coords;
         setUserPos([longitude, latitude]);
-        if (mapRef.current) {
+        if (!auto && mapRef.current) {
           mapRef.current.flyTo({ center: [longitude, latitude], zoom: 15, duration: 2000 });
         }
         if (!auto) setIsLocating(false);
@@ -91,7 +91,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
 
   const defaultCenter = properties.length > 0 && properties[0].lat && properties[0].lng
     ? { longitude: properties[0].lng, latitude: properties[0].lat }
-    : { longitude: 106.660172, latitude: 10.762622 };
+    : { longitude: 109.135, latitude: 11.91 }; // Mặc định trung tâm TP Cam Ranh
 
   if (!mounted) return <div className="h-full w-full bg-gray-100 flex items-center justify-center">Đang tải bản đồ 3D...</div>;
 
@@ -120,6 +120,36 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
     }
   };
 
+  // Hàm chuyển tab trên thanh so sánh ngang: tự động bật độ mờ rõ ràng và bay mượt đến vị trí tương ứng
+  const handleSelectPlanningTab = (layer: '2030' | '2045' | 'khuvuc1' | 'docduong34' | 'dc21') => {
+    setActivePlanningLayer(layer);
+    
+    // Tự động bật độ mờ 75% cho lớp đang chọn và tắt các lớp khác để tập trung so sánh rõ ràng
+    const targetOpacity = 0.75;
+    setOpacity2045(layer === '2045' ? targetOpacity : 0);
+    setOpacity2030(layer === '2030' ? targetOpacity : 0);
+    setOpacityKhuVuc1(layer === 'khuvuc1' ? targetOpacity : 0);
+    setOpacityDocDuong34(layer === 'docduong34' ? targetOpacity : 0);
+    setOpacityDc21(layer === 'dc21' ? targetOpacity : 0);
+
+    // Tự động bay đến đúng tâm và đúng mức zoom tương ứng
+    switch (layer) {
+      case '2045':
+      case '2030':
+        mapRef.current?.flyTo({ center: [109.135, 11.91], zoom: 12.5, duration: 1500 });
+        break;
+      case 'khuvuc1':
+        mapRef.current?.flyTo({ center: [109.1648, 11.9381], zoom: 13, duration: 1500 });
+        break;
+      case 'docduong34':
+        mapRef.current?.flyTo({ center: [109.1535, 11.9131], zoom: 15.5, duration: 1500 });
+        break;
+      case 'dc21':
+        mapRef.current?.flyTo({ center: [109.1526, 11.9132], zoom: 17.5, duration: 1500 });
+        break;
+    }
+  };
+
   const flyToActive = () => {
     switch (activePlanningLayer) {
       case '2045':
@@ -130,7 +160,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
         mapRef.current?.flyTo({ center: [109.1648, 11.9381], zoom: 13, duration: 2000 });
         break;
       case 'docduong34':
-        mapRef.current?.flyTo({ center: [109.1535, 11.9131], zoom: 15, duration: 2000 });
+        mapRef.current?.flyTo({ center: [109.1535, 11.9131], zoom: 15.5, duration: 2000 });
         break;
       case 'dc21':
         mapRef.current?.flyTo({ center: [109.1526, 11.9132], zoom: 17.5, duration: 2000 });
@@ -427,36 +457,36 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
           <div className="flex items-center justify-center gap-1 overflow-x-auto pb-1 max-w-full text-[11px] font-medium text-gray-600 scrollbar-none">
             <button
               type="button"
-              onClick={() => setActivePlanningLayer('2045')}
-              className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === '2045' ? 'bg-indigo-600 text-white font-bold' : 'hover:bg-gray-100'}`}
+              onClick={() => handleSelectPlanningTab('2045')}
+              className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === '2045' ? 'bg-indigo-600 text-white font-bold shadow-sm' : 'hover:bg-gray-100'}`}
             >
               QHC 2045 (1/10k)
             </button>
             <button
               type="button"
-              onClick={() => setActivePlanningLayer('2030')}
-              className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === '2030' ? 'bg-blue-600 text-white font-bold' : 'hover:bg-gray-100'}`}
+              onClick={() => handleSelectPlanningTab('2030')}
+              className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === '2030' ? 'bg-blue-600 text-white font-bold shadow-sm' : 'hover:bg-gray-100'}`}
             >
               SDĐ 2030 (1/25k)
             </button>
             <button
               type="button"
-              onClick={() => setActivePlanningLayer('khuvuc1')}
-              className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'khuvuc1' ? 'bg-amber-600 text-white font-bold' : 'hover:bg-gray-100'}`}
+              onClick={() => handleSelectPlanningTab('khuvuc1')}
+              className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'khuvuc1' ? 'bg-amber-600 text-white font-bold shadow-sm' : 'hover:bg-gray-100'}`}
             >
               Khu vực 1 (1/2k)
             </button>
             <button
               type="button"
-              onClick={() => setActivePlanningLayer('docduong34')}
-              className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'docduong34' ? 'bg-purple-600 text-white font-bold' : 'hover:bg-gray-100'}`}
+              onClick={() => handleSelectPlanningTab('docduong34')}
+              className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'docduong34' ? 'bg-purple-600 text-white font-bold shadow-sm' : 'hover:bg-gray-100'}`}
             >
               Đường 3/4 (1/500)
             </button>
             <button
               type="button"
-              onClick={() => setActivePlanningLayer('dc21')}
-              className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'dc21' ? 'bg-rose-600 text-white font-bold' : 'hover:bg-gray-100'}`}
+              onClick={() => handleSelectPlanningTab('dc21')}
+              className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'dc21' ? 'bg-rose-600 text-white font-bold shadow-sm' : 'hover:bg-gray-100'}`}
             >
               Tờ 21 (1/500)
             </button>
