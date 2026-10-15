@@ -322,10 +322,10 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
           type="image" 
           url="/Map/docduong_3thang4.webp"
           coordinates={[
-            [109.150574, 11.914948], // Top-Left (Tây Bắc)
-            [109.158802, 11.914948], // Top-Right (Đông Bắc)
-            [109.158802, 11.911839], // Bottom-Right (Đông Nam)
-            [109.150574, 11.911839], // Bottom-Left (Tây Nam)
+            [109.150769, 11.914679], // Top-Left (Tây Bắc)
+            [109.158799, 11.914679], // Top-Right (Đông Bắc)
+            [109.158799, 11.912021], // Bottom-Right (Đông Nam)
+            [109.150769, 11.912021], // Bottom-Left (Tây Nam)
           ]}
         >
           <Layer 
