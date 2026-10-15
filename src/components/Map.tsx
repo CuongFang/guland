@@ -29,7 +29,17 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
   const [popupInfo, setPopupInfo] = useState<Property | null>(null);
 
   const [showHeatmap, setShowHeatmap] = useState(false);
-  const [planningOpacity, setPlanningOpacity] = useState(0); // Mặc định 0%
+  const [streetMapOpacity, setStreetMapOpacity] = useState(0); // Độ mờ lớp Bản đồ Đường phố (OSM Map)
+  
+  // 5 Lớp Bản đồ Quy hoạch & Địa chính Cam Ranh
+  const [opacity2030, setOpacity2030] = useState(0); // Kế hoạch SDĐ 2030 (1/25.000)
+  const [opacity2045, setOpacity2045] = useState(0); // QHC Cam Ranh 2045 (1/10.000)
+  const [opacityKhuVuc1, setOpacityKhuVuc1] = useState(0); // Phân khu 1/2000 Khu vực 1
+  const [opacityDocDuong34, setOpacityDocDuong34] = useState(0); // 1/500 Dọc đường 3/4
+  const [opacityDc21, setOpacityDc21] = useState(0); // Địa chính 1/500 Tờ 21 Cam Thuận
+
+  const [activePlanningLayer, setActivePlanningLayer] = useState<'2030' | '2045' | 'khuvuc1' | 'docduong34' | 'dc21'>('2030');
+
   const [measureMode, setMeasureMode] = useState<'none' | 'distance' | 'area'>('none');
   const [isLayersCollapsed, setIsLayersCollapsed] = useState(true);
   
@@ -87,6 +97,45 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price);
+  };
+
+  const getActiveOpacity = () => {
+    switch (activePlanningLayer) {
+      case '2045': return opacity2045;
+      case '2030': return opacity2030;
+      case 'khuvuc1': return opacityKhuVuc1;
+      case 'docduong34': return opacityDocDuong34;
+      case 'dc21': return opacityDc21;
+      default: return opacity2030;
+    }
+  };
+
+  const setActiveOpacity = (val: number) => {
+    switch (activePlanningLayer) {
+      case '2045': setOpacity2045(val); break;
+      case '2030': setOpacity2030(val); break;
+      case 'khuvuc1': setOpacityKhuVuc1(val); break;
+      case 'docduong34': setOpacityDocDuong34(val); break;
+      case 'dc21': setOpacityDc21(val); break;
+    }
+  };
+
+  const flyToActive = () => {
+    switch (activePlanningLayer) {
+      case '2045':
+      case '2030':
+        mapRef.current?.flyTo({ center: [109.135, 11.91], zoom: 12.5, duration: 2000 });
+        break;
+      case 'khuvuc1':
+        mapRef.current?.flyTo({ center: [109.1648, 11.9381], zoom: 13, duration: 2000 });
+        break;
+      case 'docduong34':
+        mapRef.current?.flyTo({ center: [109.1535, 11.9131], zoom: 15, duration: 2000 });
+        break;
+      case 'dc21':
+        mapRef.current?.flyTo({ center: [109.1508, 11.9142], zoom: 17.5, duration: 2000 });
+        break;
+    }
   };
 
   return (
@@ -153,9 +202,132 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
           </button>
         </div>
 
-        {/* Lớp Bản đồ Quy hoạch 2030 (Demo dùng lớp giao thông OSM đè lên vệ tinh) */}
-        <Source id="planning" type="raster" tiles={['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png']} tileSize={256} maxzoom={19}>
-          <Layer id="planning-layer" type="raster" paint={{ 'raster-opacity': planningOpacity }} />
+        {/* Lớp Bản đồ Đường phố OSM (Giao thông / Đường xá) */}
+        <Source 
+          id="osm-streets" 
+          type="raster" 
+          tiles={['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png']} 
+          tileSize={256} 
+          maxzoom={19}
+        >
+          <Layer 
+            id="osm-layer" 
+            type="raster" 
+            paint={{ 
+              'raster-opacity': streetMapOpacity,
+              'raster-fade-duration': 0 
+            }} 
+          />
+        </Source>
+
+        {/* 1. Lớp Bản đồ Quy hoạch Chung TP Cam Ranh 2045 (1/10.000) */}
+        <Source 
+          id="planning-cam-ranh-2045" 
+          type="image" 
+          url="/Map/cam_ranh_2045.webp"
+          coordinates={[
+            [109.003095, 12.026543], // Top-Left (Tây Bắc)
+            [109.296956, 12.025596], // Top-Right (Đông Bắc)
+            [109.295989, 11.772498], // Bottom-Right (Đông Nam)
+            [109.002399, 11.773424], // Bottom-Left (Tây Nam)
+          ]}
+        >
+          <Layer 
+            id="planning-layer-2045" 
+            type="raster" 
+            paint={{ 
+              'raster-opacity': opacity2045,
+              'raster-fade-duration': 0
+            }} 
+          />
+        </Source>
+
+        {/* 2. Lớp Bản đồ Kế hoạch Sử dụng đất 2030 (1/25.000) */}
+        <Source 
+          id="planning-cam-ranh-2030" 
+          type="image" 
+          url="/Map/cam_ranh_2030.webp"
+          coordinates={[
+            [109.003095, 12.026543], // Top-Left (Tây Bắc)
+            [109.296956, 12.025596], // Top-Right (Đông Bắc)
+            [109.295989, 11.772498], // Bottom-Right (Đông Nam)
+            [109.002399, 11.773424], // Bottom-Left (Tây Nam)
+          ]}
+        >
+          <Layer 
+            id="planning-layer-2030" 
+            type="raster" 
+            paint={{ 
+              'raster-opacity': opacity2030,
+              'raster-fade-duration': 0
+            }} 
+          />
+        </Source>
+
+        {/* 3. Lớp Bản đồ Quy hoạch Phân khu 1/2000 Khu vực 1 Cam Ranh */}
+        <Source 
+          id="planning-khuvuc1" 
+          type="image" 
+          url="/Map/khuvuc1_camranh.webp"
+          coordinates={[
+            [109.113441, 11.999380], // Top-Left (Tây Bắc)
+            [109.194403, 11.998904], // Top-Right (Đông Bắc)
+            [109.216069, 11.876910], // Bottom-Right (Đông Nam)
+            [109.135107, 11.877386], // Bottom-Left (Tây Nam)
+          ]}
+        >
+          <Layer 
+            id="planning-layer-khuvuc1" 
+            type="raster" 
+            paint={{ 
+              'raster-opacity': opacityKhuVuc1,
+              'raster-fade-duration': 0
+            }} 
+          />
+        </Source>
+
+        {/* 4. Lớp Bản đồ Quy hoạch Chi tiết 1/500 Dọc đường 3 Tháng 4 */}
+        <Source 
+          id="planning-docduong34" 
+          type="image" 
+          url="/Map/docduong_3thang4.webp"
+          coordinates={[
+            [109.143744, 11.921527], // Top-Left (Tây Bắc)
+            [109.163184, 11.921527], // Top-Right (Đông Bắc)
+            [109.163184, 11.904680], // Bottom-Right (Đông Nam)
+            [109.143744, 11.904680], // Bottom-Left (Tây Nam)
+          ]}
+        >
+          <Layer 
+            id="planning-layer-docduong34" 
+            type="raster" 
+            paint={{ 
+              'raster-opacity': opacityDocDuong34,
+              'raster-fade-duration': 0
+            }} 
+          />
+        </Source>
+
+        {/* 5. Lớp Bản đồ Địa chính 1/500 Tờ số 21 Cam Thuận */}
+        <Source 
+          id="planning-dc21" 
+          type="image" 
+          url="/Map/dc21_map.webp"
+          coordinates={[
+            [109.149205, 11.915827], // Top-Left (NW)
+            [109.152418, 11.915817], // Top-Right (NE)
+            [109.152407, 11.912653], // Bottom-Right (SE)
+            [109.149195, 11.912663], // Bottom-Left (SW)
+          ]}
+        >
+          <Layer 
+            id="planning-layer-dc21" 
+            type="raster" 
+            paint={{ 
+              'raster-opacity': opacityDc21,
+              'raster-fade-duration': 0
+            }} 
+          />
         </Source>
 
         {/* Heatmap Layer */}
@@ -248,11 +420,124 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
         <MeasurementControlMapLibre mode={measureMode} setMode={setMeasureMode} />
       </Map>
 
+      {/* Floating Horizontal Comparison Slider (Thanh kéo trượt ngang so sánh Hiện trạng & Quy hoạch) */}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[450] max-w-[95vw] sm:max-w-2xl">
+        <div className="bg-white/95 backdrop-blur-md px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl shadow-xl border border-gray-200/90 flex flex-col gap-1.5 text-xs sm:text-sm font-semibold select-none">
+          {/* Tabs chọn nhanh bản đồ gán vào thanh trượt ngang */}
+          <div className="flex items-center justify-center gap-1 overflow-x-auto pb-1 max-w-full text-[11px] font-medium text-gray-600 scrollbar-none">
+            <button
+              type="button"
+              onClick={() => setActivePlanningLayer('2045')}
+              className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === '2045' ? 'bg-indigo-600 text-white font-bold' : 'hover:bg-gray-100'}`}
+            >
+              QHC 2045 (1/10k)
+            </button>
+            <button
+              type="button"
+              onClick={() => setActivePlanningLayer('2030')}
+              className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === '2030' ? 'bg-blue-600 text-white font-bold' : 'hover:bg-gray-100'}`}
+            >
+              SDĐ 2030 (1/25k)
+            </button>
+            <button
+              type="button"
+              onClick={() => setActivePlanningLayer('khuvuc1')}
+              className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'khuvuc1' ? 'bg-amber-600 text-white font-bold' : 'hover:bg-gray-100'}`}
+            >
+              Khu vực 1 (1/2k)
+            </button>
+            <button
+              type="button"
+              onClick={() => setActivePlanningLayer('docduong34')}
+              className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'docduong34' ? 'bg-purple-600 text-white font-bold' : 'hover:bg-gray-100'}`}
+            >
+              Đường 3/4 (1/500)
+            </button>
+            <button
+              type="button"
+              onClick={() => setActivePlanningLayer('dc21')}
+              className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'dc21' ? 'bg-rose-600 text-white font-bold' : 'hover:bg-gray-100'}`}
+            >
+              Tờ 21 (1/500)
+            </button>
+          </div>
+
+          {/* Thanh điều khiển trượt */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Nút Hiện trạng (0%) */}
+            <button
+              type="button"
+              onClick={() => setActiveOpacity(0)}
+              className={`flex items-center gap-1 px-2 py-1 rounded-xl transition-all whitespace-nowrap ${
+                getActiveOpacity() === 0 
+                  ? 'bg-blue-600 text-white shadow-sm' 
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+              title="Xem 100% ảnh vệ tinh hiện trạng (0% quy hoạch)"
+            >
+              <span>🛰️</span>
+              <span className="hidden sm:inline">Hiện trạng</span>
+              <span className="sm:hidden">Vệ tinh</span>
+            </button>
+
+            {/* Thanh kéo trượt ngang */}
+            <div className="flex flex-col items-center gap-0.5 min-w-[120px] sm:min-w-[200px] flex-1">
+              <div className="w-full flex justify-between items-center text-[10px] text-gray-500 font-medium px-0.5">
+                <span>0%</span>
+                <span className="px-1.5 py-0.2 rounded-full bg-blue-50 text-blue-700 font-bold border border-blue-200">
+                  {Math.round(getActiveOpacity() * 100)}%
+                </span>
+                <span>100%</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={getActiveOpacity()}
+                onChange={(e) => setActiveOpacity(parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600 hover:accent-blue-700 transition-all"
+                aria-label="Thanh trượt độ mờ so sánh quy hoạch"
+              />
+            </div>
+
+            {/* Nút Quy hoạch (100%) */}
+            <button
+              type="button"
+              onClick={() => setActiveOpacity(1)}
+              className={`flex items-center gap-1 px-2 py-1 rounded-xl transition-all whitespace-nowrap ${
+                getActiveOpacity() > 0.85 
+                  ? 'bg-rose-600 text-white shadow-sm' 
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+              title="Xem 100% bản đồ quy hoạch đang chọn"
+            >
+              <span>📑</span>
+              <span className="hidden sm:inline">Quy hoạch</span>
+              <span className="sm:hidden">100%</span>
+            </button>
+
+            {/* Nút Định vị vị trí bản đồ đang chọn */}
+            <button
+              type="button"
+              onClick={() => {
+                if (getActiveOpacity() === 0) setActiveOpacity(0.7);
+                flyToActive();
+              }}
+              className="p-1 text-blue-600 hover:bg-blue-50 rounded-xl transition-colors border border-blue-100 flex items-center justify-center"
+              title="Định vị vị trí bản đồ này"
+            >
+              📍
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Toggles Panel */}
-      <div className={`absolute bottom-6 left-6 z-[500] bg-white rounded-xl shadow-lg border border-gray-200 text-black transition-all duration-300 overflow-hidden flex flex-col ${isLayersCollapsed ? 'w-12 h-12' : 'w-64'}`}>
+      <div className={`absolute bottom-6 left-6 z-[500] bg-white rounded-xl shadow-lg border border-gray-200 text-black transition-all duration-300 overflow-hidden flex flex-col ${isLayersCollapsed ? 'w-12 h-12' : 'w-80 sm:w-96'}`}>
         {/* Nút thu gọn / mở rộng */}
         <div className={`flex items-center ${isLayersCollapsed ? 'justify-center w-full h-full' : 'justify-between px-4 py-3 border-b border-gray-100 bg-gray-50'}`}>
-          {!isLayersCollapsed && <span className="font-bold text-gray-800">Lớp Bản đồ</span>}
+          {!isLayersCollapsed && <span className="font-bold text-gray-800">Lớp Bản đồ ({[streetMapOpacity, opacity2045, opacity2030, opacityKhuVuc1, opacityDocDuong34, opacityDc21].filter(o => o > 0).length} đang bật)</span>}
           <button 
             onClick={() => setIsLayersCollapsed(!isLayersCollapsed)}
             className="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-200 rounded-full transition-colors"
@@ -263,31 +548,215 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
         </div>
 
         {!isLayersCollapsed && (
-          <div className="p-4 space-y-4">
+          <div className="p-4 space-y-3.5 max-h-[75vh] overflow-y-auto divide-y divide-gray-100">
             {/* Heatmap Toggle */}
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input 
-                type="checkbox" 
-                checked={showHeatmap} 
-                onChange={e => setShowHeatmap(e.target.checked)}
-                className="w-4 h-4 text-blue-600 rounded"
-              />
-              <span className="text-sm font-medium">Bản đồ nhiệt (Heatmap)</span>
-            </label>
+            <div className="pt-1">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={showHeatmap} 
+                  onChange={e => setShowHeatmap(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 rounded"
+                />
+                <span className="text-sm font-medium">Bản đồ nhiệt giá đất (Heatmap)</span>
+              </label>
+            </div>
 
-            {/* Planning Opacity Slider */}
-            <div className="space-y-1">
-              <div className="flex justify-between text-sm font-medium">
-                <span>Quy hoạch 2030</span>
-                <span>{Math.round(planningOpacity * 100)}%</span>
+            {/* 1. Street Map (OSM Map) Slider */}
+            <div className="space-y-1 pt-2.5">
+              <div className="flex justify-between items-center text-xs font-semibold">
+                <span className="flex items-center gap-1.5 text-gray-800">
+                  🗺️ <span>Bản đồ Map (Giao thông OSM)</span>
+                </span>
+                <span className="text-emerald-600 font-bold">{Math.round(streetMapOpacity * 100)}%</span>
               </div>
               <input 
                 type="range" 
                 min="0" max="1" step="0.05"
-                value={planningOpacity}
-                onChange={e => setPlanningOpacity(parseFloat(e.target.value))}
+                value={streetMapOpacity}
+                onChange={e => setStreetMapOpacity(parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+              />
+              <div className="flex justify-between text-[10px] text-gray-500 font-medium">
+                <button type="button" onClick={() => setStreetMapOpacity(0)} className="hover:underline">Tắt (0%)</button>
+                <button type="button" onClick={() => setStreetMapOpacity(0.5)} className="hover:underline">Chồng 50%</button>
+                <button type="button" onClick={() => setStreetMapOpacity(1)} className="hover:underline">Map 100%</button>
+              </div>
+            </div>
+
+            {/* 2. QHC Cam Ranh 2045 (1/10.000) */}
+            <div className="space-y-1 pt-2.5">
+              <div className="flex justify-between items-center text-xs font-semibold">
+                <span className="flex items-center gap-1 text-gray-800">
+                  📑 <span>QHC Cam Ranh 2045</span>
+                  <span className="text-[10px] font-normal text-gray-500">(1/10.000)</span>
+                </span>
+                <span className="text-indigo-600 font-bold">{Math.round(opacity2045 * 100)}%</span>
+              </div>
+              <input 
+                type="range" 
+                min="0" max="1" step="0.05"
+                value={opacity2045}
+                onChange={e => setOpacity2045(parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+              />
+              <div className="flex justify-between items-center text-[10px]">
+                <div className="flex gap-2 text-gray-500">
+                  <button type="button" onClick={() => setOpacity2045(0)} className="hover:underline">0%</button>
+                  <button type="button" onClick={() => setOpacity2045(0.5)} className="hover:underline">50%</button>
+                  <button type="button" onClick={() => setOpacity2045(1)} className="hover:underline">100%</button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (opacity2045 === 0) setOpacity2045(0.7);
+                    mapRef.current?.flyTo({ center: [109.135, 11.91], zoom: 12.5, duration: 2000 });
+                  }}
+                  className="px-2 py-0.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded text-[10px] font-medium border border-indigo-200 flex items-center gap-0.5"
+                >
+                  📍 Định vị
+                </button>
+              </div>
+            </div>
+
+            {/* 3. Kế hoạch SDĐ Cam Ranh 2030 (1/25.000) */}
+            <div className="space-y-1 pt-2.5">
+              <div className="flex justify-between items-center text-xs font-semibold">
+                <span className="flex items-center gap-1 text-gray-800">
+                  📊 <span>Sử dụng đất 2030</span>
+                  <span className="text-[10px] font-normal text-gray-500">(1/25.000)</span>
+                </span>
+                <span className="text-blue-600 font-bold">{Math.round(opacity2030 * 100)}%</span>
+              </div>
+              <input 
+                type="range" 
+                min="0" max="1" step="0.05"
+                value={opacity2030}
+                onChange={e => setOpacity2030(parseFloat(e.target.value))}
                 className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
               />
+              <div className="flex justify-between items-center text-[10px]">
+                <div className="flex gap-2 text-gray-500">
+                  <button type="button" onClick={() => setOpacity2030(0)} className="hover:underline">0%</button>
+                  <button type="button" onClick={() => setOpacity2030(0.5)} className="hover:underline">50%</button>
+                  <button type="button" onClick={() => setOpacity2030(1)} className="hover:underline">100%</button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (opacity2030 === 0) setOpacity2030(0.7);
+                    mapRef.current?.flyTo({ center: [109.135, 11.91], zoom: 12.5, duration: 2000 });
+                  }}
+                  className="px-2 py-0.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded text-[10px] font-medium border border-blue-200 flex items-center gap-0.5"
+                >
+                  📍 Định vị
+                </button>
+              </div>
+            </div>
+
+            {/* 4. Quy hoạch Phân khu 1/2000 Khu vực 1 */}
+            <div className="space-y-1 pt-2.5">
+              <div className="flex justify-between items-center text-xs font-semibold">
+                <span className="flex items-center gap-1 text-gray-800">
+                  🏗️ <span>Phân khu Khu vực 1</span>
+                  <span className="text-[10px] font-normal text-gray-500">(1/2.000)</span>
+                </span>
+                <span className="text-amber-600 font-bold">{Math.round(opacityKhuVuc1 * 100)}%</span>
+              </div>
+              <input 
+                type="range" 
+                min="0" max="1" step="0.05"
+                value={opacityKhuVuc1}
+                onChange={e => setOpacityKhuVuc1(parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-amber-600"
+              />
+              <div className="flex justify-between items-center text-[10px]">
+                <div className="flex gap-2 text-gray-500">
+                  <button type="button" onClick={() => setOpacityKhuVuc1(0)} className="hover:underline">0%</button>
+                  <button type="button" onClick={() => setOpacityKhuVuc1(0.5)} className="hover:underline">50%</button>
+                  <button type="button" onClick={() => setOpacityKhuVuc1(1)} className="hover:underline">100%</button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (opacityKhuVuc1 === 0) setOpacityKhuVuc1(0.7);
+                    mapRef.current?.flyTo({ center: [109.1648, 11.9381], zoom: 13, duration: 2000 });
+                  }}
+                  className="px-2 py-0.5 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded text-[10px] font-medium border border-amber-200 flex items-center gap-0.5"
+                >
+                  📍 Định vị
+                </button>
+              </div>
+            </div>
+
+            {/* 5. Quy hoạch Chi tiết 1/500 Dọc đường 3 Tháng 4 */}
+            <div className="space-y-1 pt-2.5">
+              <div className="flex justify-between items-center text-xs font-semibold">
+                <span className="flex items-center gap-1 text-gray-800">
+                  📐 <span>Dọc đường 3 Tháng 4</span>
+                  <span className="text-[10px] font-normal text-gray-500">(1/500)</span>
+                </span>
+                <span className="text-purple-600 font-bold">{Math.round(opacityDocDuong34 * 100)}%</span>
+              </div>
+              <input 
+                type="range" 
+                min="0" max="1" step="0.05"
+                value={opacityDocDuong34}
+                onChange={e => setOpacityDocDuong34(parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+              />
+              <div className="flex justify-between items-center text-[10px]">
+                <div className="flex gap-2 text-gray-500">
+                  <button type="button" onClick={() => setOpacityDocDuong34(0)} className="hover:underline">0%</button>
+                  <button type="button" onClick={() => setOpacityDocDuong34(0.5)} className="hover:underline">50%</button>
+                  <button type="button" onClick={() => setOpacityDocDuong34(1)} className="hover:underline">100%</button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (opacityDocDuong34 === 0) setOpacityDocDuong34(0.7);
+                    mapRef.current?.flyTo({ center: [109.1535, 11.9131], zoom: 15, duration: 2000 });
+                  }}
+                  className="px-2 py-0.5 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded text-[10px] font-medium border border-purple-200 flex items-center gap-0.5"
+                >
+                  📍 Định vị
+                </button>
+              </div>
+            </div>
+
+            {/* 6. Bản đồ Địa chính 1/500 Tờ số 21 Cam Thuận */}
+            <div className="space-y-1 pt-2.5">
+              <div className="flex justify-between items-center text-xs font-semibold">
+                <span className="flex items-center gap-1 text-gray-800">
+                  📜 <span>Địa chính Tờ 21 Cam Thuận</span>
+                  <span className="text-[10px] font-normal text-gray-500">(1/500)</span>
+                </span>
+                <span className="text-rose-600 font-bold">{Math.round(opacityDc21 * 100)}%</span>
+              </div>
+              <input 
+                type="range" 
+                min="0" max="1" step="0.05"
+                value={opacityDc21}
+                onChange={e => setOpacityDc21(parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-rose-600"
+              />
+              <div className="flex justify-between items-center text-[10px]">
+                <div className="flex gap-2 text-gray-500">
+                  <button type="button" onClick={() => setOpacityDc21(0)} className="hover:underline">0%</button>
+                  <button type="button" onClick={() => setOpacityDc21(0.5)} className="hover:underline">50%</button>
+                  <button type="button" onClick={() => setOpacityDc21(1)} className="hover:underline">100%</button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (opacityDc21 === 0) setOpacityDc21(0.7);
+                    mapRef.current?.flyTo({ center: [109.1508, 11.9142], zoom: 17.5, duration: 2000 });
+                  }}
+                  className="px-2 py-0.5 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded text-[10px] font-medium border border-rose-200 flex items-center gap-0.5"
+                >
+                  📍 Định vị
+                </button>
+              </div>
             </div>
           </div>
         )}
