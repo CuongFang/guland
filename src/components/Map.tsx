@@ -23,6 +23,42 @@ type Property = {
   google_map_link?: string;
 };
 
+export type LayerKey = '2030' | '2045' | 'khuvuc1' | 'docduong34' | 'dc21';
+export type QuadCoords = [[number, number], [number, number], [number, number], [number, number]];
+
+export const DEFAULT_COORDS: Record<LayerKey, QuadCoords> = {
+  '2045': [
+    [109.003095, 12.026543], // Top-Left (Tây Bắc)
+    [109.296956, 12.025596], // Top-Right (Đông Bắc)
+    [109.295989, 11.772498], // Bottom-Right (Đông Nam)
+    [109.002399, 11.773424], // Bottom-Left (Tây Nam)
+  ],
+  '2030': [
+    [109.003095, 12.026543],
+    [109.296956, 12.025596],
+    [109.295989, 11.772498],
+    [109.002399, 11.773424],
+  ],
+  'khuvuc1': [
+    [109.113441, 11.999380],
+    [109.194403, 11.998904],
+    [109.216069, 11.876910],
+    [109.135107, 11.877386],
+  ],
+  'docduong34': [
+    [109.150769, 11.914679],
+    [109.158799, 11.914679],
+    [109.158799, 11.912021],
+    [109.150769, 11.912021],
+  ],
+  'dc21': [
+    [109.150985, 11.914792],
+    [109.154198, 11.914782],
+    [109.154187, 11.911618],
+    [109.150975, 11.911628],
+  ],
+};
+
 export default function MapLibreWrapper({ properties = [], searchLocation }: { properties?: Property[], searchLocation?: [number, number] | null }) {
   const [mounted, setMounted] = useState(false);
   const mapRef = useRef<MapRef>(null);
@@ -38,7 +74,14 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
   const [opacityDocDuong34, setOpacityDocDuong34] = useState(0); // 1/500 Dọc đường 3/4
   const [opacityDc21, setOpacityDc21] = useState(0); // Địa chính 1/500 Tờ 21 Cam Thuận
 
-  const [activePlanningLayer, setActivePlanningLayer] = useState<'2030' | '2045' | 'khuvuc1' | 'docduong34' | 'dc21'>('2030');
+  const [activePlanningLayer, setActivePlanningLayer] = useState<LayerKey>('2030');
+
+  // Quản lý tọa độ các lớp quy hoạch và chế độ Căn chỉnh thủ công bằng chuột
+  const [layerCoords, setLayerCoords] = useState<Record<LayerKey, QuadCoords>>(DEFAULT_COORDS);
+  const [isCalibrating, setIsCalibrating] = useState(false);
+  const [calibNudgeMeters, setCalibNudgeMeters] = useState<number>(2); // 1m, 2m, 5m, 20m
+  const [isCalibPanelCollapsed, setIsCalibPanelCollapsed] = useState(false);
+  const lastDragPointRef = useRef<{ lng: number; lat: number } | null>(null);
 
   const [measureMode, setMeasureMode] = useState<'none' | 'distance' | 'area'>('none');
   const [isLayersCollapsed, setIsLayersCollapsed] = useState(true);
@@ -70,7 +113,189 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
     setMounted(true);
     // Tự động định vị khi load trang
     locateUser(true);
+
+    // Khôi phục cấu hình căn chỉnh từ localStorage nếu có
+    try {
+      const saved = localStorage.getItem('guland_calib_coords');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setLayerCoords(prev => ({ ...prev, ...parsed }));
+      }
+    } catch (e) {
+      console.warn('Lỗi đọc localStorage:', e);
+    }
   }, []);
+
+  const getLayerName = (layer: LayerKey) => {
+    switch (layer) {
+      case '2045': return 'QHC Cam Ranh 2045 (1/10.000)';
+      case '2030': return 'Sử dụng đất 2030 (1/25.000)';
+      case 'khuvuc1': return 'Phân khu 1/2000 Khu vực 1';
+      case 'docduong34': return 'Dọc đường 3 Tháng 4 (1/500)';
+      case 'dc21': return 'Địa chính Tờ 21 (1/500)';
+    }
+  };
+
+  const updateSourceCoordinates = (layerKey: LayerKey, coords: QuadCoords) => {
+    const sourceIdMap: Record<LayerKey, string> = {
+      '2045': 'planning-cam-ranh-2045',
+      '2030': 'planning-cam-ranh-2030',
+      'khuvuc1': 'planning-khuvuc1',
+      'docduong34': 'planning-docduong34',
+      'dc21': 'planning-dc21',
+    };
+    if (mapRef.current) {
+      const src = mapRef.current.getSource(sourceIdMap[layerKey]) as any;
+      if (src && typeof src.setCoordinates === 'function') {
+        src.setCoordinates(coords);
+      }
+    }
+  };
+
+  // Cập nhật tọa độ 1 góc khi người dùng kéo chuột
+  const handleCornerDrag = (cornerIdx: number, lng: number, lat: number) => {
+    setLayerCoords(prev => {
+      const current = [...prev[activePlanningLayer]] as QuadCoords;
+      current[cornerIdx] = [lng, lat];
+      const updated = {
+        ...prev,
+        [activePlanningLayer]: current
+      };
+      updateSourceCoordinates(activePlanningLayer, current);
+      return updated;
+    });
+  };
+
+  // Kéo điểm Tâm để di chuyển toàn bộ tấm bản đồ bằng delta chính xác
+  const handleCenterDragDelta = (newLng: number, newLat: number) => {
+    if (!lastDragPointRef.current) {
+      lastDragPointRef.current = { lng: newLng, lat: newLat };
+      return;
+    }
+    const dLng = newLng - lastDragPointRef.current.lng;
+    const dLat = newLat - lastDragPointRef.current.lat;
+    lastDragPointRef.current = { lng: newLng, lat: newLat };
+
+    setLayerCoords(prev => {
+      const current = prev[activePlanningLayer];
+      const nextCoords = current.map(([lng, lat]) => [
+        lng + dLng,
+        lat + dLat
+      ]) as QuadCoords;
+      updateSourceCoordinates(activePlanningLayer, nextCoords);
+      return {
+        ...prev,
+        [activePlanningLayer]: nextCoords
+      };
+    });
+  };
+
+  // Dịch chuyển theo mét
+  const nudge = (direction: 'up' | 'down' | 'left' | 'right') => {
+    const meters = calibNudgeMeters;
+    const dLat = (meters / 110580.0) * (direction === 'up' ? 1 : direction === 'down' ? -1 : 0);
+    const dLng = (meters / 108923.0) * (direction === 'right' ? 1 : direction === 'left' ? -1 : 0);
+
+    setLayerCoords(prev => {
+      const current = prev[activePlanningLayer];
+      const nextCoords = current.map(([lng, lat]) => [
+        lng + dLng,
+        lat + dLat
+      ]) as QuadCoords;
+      updateSourceCoordinates(activePlanningLayer, nextCoords);
+      return {
+        ...prev,
+        [activePlanningLayer]: nextCoords
+      };
+    });
+  };
+
+  // Xoay bản đồ quanh tâm
+  const rotateLayer = (deg: number) => {
+    setLayerCoords(prev => {
+      const current = prev[activePlanningLayer];
+      const cLng = (current[0][0] + current[1][0] + current[2][0] + current[3][0]) / 4;
+      const cLat = (current[0][1] + current[1][1] + current[2][1] + current[3][1]) / 4;
+      const rad = (deg * Math.PI) / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      const cosLat = Math.cos((cLat * Math.PI) / 180);
+
+      const nextCoords = current.map(([lng, lat]) => {
+        const x = (lng - cLng) * cosLat;
+        const y = lat - cLat;
+        const rx = x * cos - y * sin;
+        const ry = x * sin + y * cos;
+        return [
+          cLng + rx / cosLat,
+          cLat + ry
+        ];
+      }) as QuadCoords;
+
+      updateSourceCoordinates(activePlanningLayer, nextCoords);
+      return {
+        ...prev,
+        [activePlanningLayer]: nextCoords
+      };
+    });
+  };
+
+  // Thu phóng quanh tâm
+  const scaleLayer = (factor: number, axis: 'both' | 'x' | 'y' = 'both') => {
+    setLayerCoords(prev => {
+      const current = prev[activePlanningLayer];
+      const cLng = (current[0][0] + current[1][0] + current[2][0] + current[3][0]) / 4;
+      const cLat = (current[0][1] + current[1][1] + current[2][1] + current[3][1]) / 4;
+
+      const fx = axis === 'both' || axis === 'x' ? factor : 1;
+      const fy = axis === 'both' || axis === 'y' ? factor : 1;
+
+      const nextCoords = current.map(([lng, lat]) => [
+        cLng + (lng - cLng) * fx,
+        cLat + (lat - cLat) * fy
+      ]) as QuadCoords;
+
+      updateSourceCoordinates(activePlanningLayer, nextCoords);
+      return {
+        ...prev,
+        [activePlanningLayer]: nextCoords
+      };
+    });
+  };
+
+  // Lưu cấu hình vào localStorage
+  const saveCalibration = () => {
+    try {
+      localStorage.setItem('guland_calib_coords', JSON.stringify(layerCoords));
+      alert(`Đã lưu thành công tọa độ căn chỉnh cho lớp "${getLayerName(activePlanningLayer)}"!`);
+    } catch (e) {
+      alert('Không thể lưu vào trình duyệt: ' + e);
+    }
+  };
+
+  // Khôi phục mặc định
+  const resetCalibration = () => {
+    if (confirm(`Bạn có chắc muốn khôi phục tọa độ mặc định ban đầu cho lớp "${getLayerName(activePlanningLayer)}"?`)) {
+      const def = DEFAULT_COORDS[activePlanningLayer];
+      setLayerCoords(prev => ({
+        ...prev,
+        [activePlanningLayer]: def
+      }));
+      updateSourceCoordinates(activePlanningLayer, def);
+      try {
+        const saved = JSON.parse(localStorage.getItem('guland_calib_coords') || '{}');
+        delete saved[activePlanningLayer];
+        localStorage.setItem('guland_calib_coords', JSON.stringify(saved));
+      } catch (e) {}
+    }
+  };
+
+  // Sao chép tọa độ
+  const copyCoords = () => {
+    const text = JSON.stringify(layerCoords[activePlanningLayer], null, 2);
+    navigator.clipboard.writeText(text);
+    alert('Đã sao chép mảng tọa độ vào Clipboard! Bạn có thể gửi lại cho chúng tôi để cập nhật cố định.');
+  };
 
   useEffect(() => {
     if (searchLocation && mapRef.current) {
@@ -255,12 +480,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
           id="planning-cam-ranh-2045" 
           type="image" 
           url="/Map/cam_ranh_2045.webp"
-          coordinates={[
-            [109.003095, 12.026543], // Top-Left (Tây Bắc)
-            [109.296956, 12.025596], // Top-Right (Đông Bắc)
-            [109.295989, 11.772498], // Bottom-Right (Đông Nam)
-            [109.002399, 11.773424], // Bottom-Left (Tây Nam)
-          ]}
+          coordinates={layerCoords['2045']}
         >
           <Layer 
             id="planning-layer-2045" 
@@ -277,12 +497,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
           id="planning-cam-ranh-2030" 
           type="image" 
           url="/Map/cam_ranh_2030.webp"
-          coordinates={[
-            [109.003095, 12.026543], // Top-Left (Tây Bắc)
-            [109.296956, 12.025596], // Top-Right (Đông Bắc)
-            [109.295989, 11.772498], // Bottom-Right (Đông Nam)
-            [109.002399, 11.773424], // Bottom-Left (Tây Nam)
-          ]}
+          coordinates={layerCoords['2030']}
         >
           <Layer 
             id="planning-layer-2030" 
@@ -299,12 +514,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
           id="planning-khuvuc1" 
           type="image" 
           url="/Map/khuvuc1_camranh.webp"
-          coordinates={[
-            [109.113441, 11.999380], // Top-Left (Tây Bắc)
-            [109.194403, 11.998904], // Top-Right (Đông Bắc)
-            [109.216069, 11.876910], // Bottom-Right (Đông Nam)
-            [109.135107, 11.877386], // Bottom-Left (Tây Nam)
-          ]}
+          coordinates={layerCoords['khuvuc1']}
         >
           <Layer 
             id="planning-layer-khuvuc1" 
@@ -321,12 +531,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
           id="planning-docduong34" 
           type="image" 
           url="/Map/docduong_3thang4.webp"
-          coordinates={[
-            [109.150769, 11.914679], // Top-Left (Tây Bắc)
-            [109.158799, 11.914679], // Top-Right (Đông Bắc)
-            [109.158799, 11.912021], // Bottom-Right (Đông Nam)
-            [109.150769, 11.912021], // Bottom-Left (Tây Nam)
-          ]}
+          coordinates={layerCoords['docduong34']}
         >
           <Layer 
             id="planning-layer-docduong34" 
@@ -343,12 +548,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
           id="planning-dc21" 
           type="image" 
           url="/Map/dc21_map.webp"
-          coordinates={[
-            [109.150985, 11.914792], // Top-Left (NW)
-            [109.154198, 11.914782], // Top-Right (NE)
-            [109.154187, 11.911618], // Bottom-Right (SE)
-            [109.150975, 11.911628], // Bottom-Left (SW)
-          ]}
+          coordinates={layerCoords['dc21']}
         >
           <Layer 
             id="planning-layer-dc21" 
@@ -448,6 +648,102 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
         )}
 
         <MeasurementControlMapLibre mode={measureMode} setMode={setMeasureMode} />
+
+        {/* 4 Chốt kéo ở 4 góc và 1 Chốt tâm khi bật Chế độ Căn chỉnh thủ công */}
+        {isCalibrating && layerCoords[activePlanningLayer] && (
+          <>
+            {/* Chốt 1: Top-Left (Tây Bắc) */}
+            <Marker
+              longitude={layerCoords[activePlanningLayer][0][0]}
+              latitude={layerCoords[activePlanningLayer][0][1]}
+              draggable
+              onDrag={(e: any) => handleCornerDrag(0, e.lngLat.lng, e.lngLat.lat)}
+              onDragEnd={(e: any) => handleCornerDrag(0, e.lngLat.lng, e.lngLat.lat)}
+              anchor="center"
+            >
+              <div 
+                className="w-7 h-7 bg-red-600 hover:bg-red-500 text-white rounded-full flex items-center justify-center font-bold text-xs border-2 border-white shadow-2xl cursor-grab active:cursor-grabbing hover:scale-125 transition-transform select-none"
+                title="Góc 1: Tây Bắc - Kéo chuột để nắn góc"
+              >
+                1
+              </div>
+            </Marker>
+
+            {/* Chốt 2: Top-Right (Đông Bắc) */}
+            <Marker
+              longitude={layerCoords[activePlanningLayer][1][0]}
+              latitude={layerCoords[activePlanningLayer][1][1]}
+              draggable
+              onDrag={(e: any) => handleCornerDrag(1, e.lngLat.lng, e.lngLat.lat)}
+              onDragEnd={(e: any) => handleCornerDrag(1, e.lngLat.lng, e.lngLat.lat)}
+              anchor="center"
+            >
+              <div 
+                className="w-7 h-7 bg-emerald-600 hover:bg-emerald-500 text-white rounded-full flex items-center justify-center font-bold text-xs border-2 border-white shadow-2xl cursor-grab active:cursor-grabbing hover:scale-125 transition-transform select-none"
+                title="Góc 2: Đông Bắc - Kéo chuột để nắn góc"
+              >
+                2
+              </div>
+            </Marker>
+
+            {/* Chốt 3: Bottom-Right (Đông Nam) */}
+            <Marker
+              longitude={layerCoords[activePlanningLayer][2][0]}
+              latitude={layerCoords[activePlanningLayer][2][1]}
+              draggable
+              onDrag={(e: any) => handleCornerDrag(2, e.lngLat.lng, e.lngLat.lat)}
+              onDragEnd={(e: any) => handleCornerDrag(2, e.lngLat.lng, e.lngLat.lat)}
+              anchor="center"
+            >
+              <div 
+                className="w-7 h-7 bg-purple-600 hover:bg-purple-500 text-white rounded-full flex items-center justify-center font-bold text-xs border-2 border-white shadow-2xl cursor-grab active:cursor-grabbing hover:scale-125 transition-transform select-none"
+                title="Góc 3: Đông Nam - Kéo chuột để nắn góc"
+              >
+                3
+              </div>
+            </Marker>
+
+            {/* Chốt 4: Bottom-Left (Tây Nam) */}
+            <Marker
+              longitude={layerCoords[activePlanningLayer][3][0]}
+              latitude={layerCoords[activePlanningLayer][3][1]}
+              draggable
+              onDrag={(e: any) => handleCornerDrag(3, e.lngLat.lng, e.lngLat.lat)}
+              onDragEnd={(e: any) => handleCornerDrag(3, e.lngLat.lng, e.lngLat.lat)}
+              anchor="center"
+            >
+              <div 
+                className="w-7 h-7 bg-amber-500 hover:bg-amber-400 text-white rounded-full flex items-center justify-center font-bold text-xs border-2 border-white shadow-2xl cursor-grab active:cursor-grabbing hover:scale-125 transition-transform select-none"
+                title="Góc 4: Tây Nam - Kéo chuột để nắn góc"
+              >
+                4
+              </div>
+            </Marker>
+
+            {/* Chốt Tâm: Kéo dời toàn bộ bản đồ */}
+            <Marker
+              longitude={(layerCoords[activePlanningLayer][0][0] + layerCoords[activePlanningLayer][1][0] + layerCoords[activePlanningLayer][2][0] + layerCoords[activePlanningLayer][3][0]) / 4}
+              latitude={(layerCoords[activePlanningLayer][0][1] + layerCoords[activePlanningLayer][1][1] + layerCoords[activePlanningLayer][2][1] + layerCoords[activePlanningLayer][3][1]) / 4}
+              draggable
+              onDragStart={(e: any) => {
+                lastDragPointRef.current = { lng: e.lngLat.lng, lat: e.lngLat.lat };
+              }}
+              onDrag={(e: any) => handleCenterDragDelta(e.lngLat.lng, e.lngLat.lat)}
+              onDragEnd={() => {
+                lastDragPointRef.current = null;
+              }}
+              anchor="center"
+            >
+              <div 
+                className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-full flex items-center gap-1 font-bold text-xs border-2 border-white shadow-2xl cursor-move hover:scale-110 transition-transform select-none"
+                title="Kéo điểm này để dời cả tấm bản đồ"
+              >
+                <span>✥</span>
+                <span>Kéo dời bản đồ</span>
+              </div>
+            </Marker>
+          </>
+        )}
       </Map>
 
       {/* Floating Horizontal Comparison Slider (Thanh kéo trượt ngang so sánh Hiện trạng & Quy hoạch) */}
@@ -559,9 +855,351 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
             >
               📍
             </button>
+
+            {/* Nút Căn chỉnh tay */}
+            <button
+              type="button"
+              onClick={() => {
+                if (!isCalibrating && getActiveOpacity() < 0.2) {
+                  setActiveOpacity(0.65);
+                }
+                setIsCalibrating(!isCalibrating);
+              }}
+              className={`flex items-center gap-1 px-2 py-1 rounded-xl transition-all text-xs font-bold border ${
+                isCalibrating 
+                  ? 'bg-amber-500 text-white border-amber-600 shadow-md ring-2 ring-amber-300' 
+                  : 'text-amber-800 bg-amber-50 border-amber-200 hover:bg-amber-100'
+              }`}
+              title="Bật/Tắt chế độ dùng chuột & tay để căn chỉnh lại bản đồ"
+            >
+              <span>🛠️</span>
+              <span className="hidden sm:inline">{isCalibrating ? 'Đang căn chỉnh' : 'Căn chỉnh tay'}</span>
+              <span className="sm:hidden">Căn chỉnh</span>
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Floating Calibration Control Panel (Bảng điều khiển căn chỉnh thủ công) */}
+      {isCalibrating && (
+        isCalibPanelCollapsed ? (
+          <div className="absolute top-4 right-4 z-[500]">
+            <button
+              type="button"
+              onClick={() => setIsCalibPanelCollapsed(false)}
+              className="flex items-center gap-2 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl shadow-xl border-2 border-white transition-all hover:scale-105"
+            >
+              <span>🛠️ Bảng căn chỉnh ({getLayerName(activePlanningLayer)})</span>
+              <span className="bg-amber-700 text-[10px] px-1.5 py-0.5 rounded">Mở</span>
+            </button>
+          </div>
+        ) : (
+          <div className="absolute top-4 right-4 z-[500] w-80 sm:w-96 max-w-[95vw] max-h-[92vh] overflow-y-auto bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-gray-200 text-gray-800 flex flex-col p-4 text-xs select-none">
+            {/* Tiêu đề & Thu nhỏ / Đóng */}
+            <div className="flex items-center justify-between pb-3 border-b border-gray-200">
+              <div className="flex items-center gap-2">
+                <span className="text-base">🛠️</span>
+                <div>
+                  <div className="font-bold text-sm text-gray-900">Căn Chỉnh Thủ Công</div>
+                  <div className="text-[10px] text-amber-700 font-semibold">{getLayerName(activePlanningLayer)}</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setIsCalibPanelCollapsed(true)}
+                  className="w-7 h-7 flex items-center justify-center text-gray-500 hover:bg-gray-200 rounded-lg transition-colors font-bold"
+                  title="Thu nhỏ bảng điều khiển"
+                >
+                  _
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsCalibrating(false)}
+                  className="w-7 h-7 flex items-center justify-center text-gray-500 hover:bg-red-100 hover:text-red-600 rounded-lg transition-colors font-bold"
+                  title="Đóng chế độ căn chỉnh"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Tabs chọn lớp quy hoạch để căn chỉnh */}
+            <div className="pt-2.5 pb-2">
+              <div className="text-[11px] font-bold text-gray-700 mb-1.5">Chọn lớp cần căn chỉnh:</div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
+                {[
+                  { key: 'khuvuc1', label: 'Khu vực 1' },
+                  { key: 'docduong34', label: 'Đường 3/4' },
+                  { key: 'dc21', label: 'Tờ 21 (1/500)' },
+                  { key: '2045', label: 'QHC 2045' },
+                  { key: '2030', label: 'SDĐ 2030' },
+                ].map(item => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => handleSelectPlanningTab(item.key as any)}
+                    className={`px-2 py-1 rounded-lg text-[11px] font-semibold transition-all border ${
+                      activePlanningLayer === item.key
+                        ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
+                        : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Điều chỉnh độ mờ để so sánh với ảnh vệ tinh */}
+            <div className="py-2 border-t border-gray-100">
+              <div className="flex justify-between items-center mb-1">
+                <span className="font-semibold text-gray-700">Độ mờ so sánh ảnh vệ tinh:</span>
+                <span className="font-bold text-amber-600">{Math.round(getActiveOpacity() * 100)}%</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={getActiveOpacity()}
+                onChange={e => setActiveOpacity(parseFloat(e.target.value))}
+                className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-amber-500"
+              />
+              <div className="flex justify-between text-[10px] text-gray-500 mt-1">
+                <button type="button" onClick={() => setActiveOpacity(0.3)} className="hover:underline">30% (Nhìn xuyên)</button>
+                <button type="button" onClick={() => setActiveOpacity(0.6)} className="hover:underline font-bold text-amber-700">60% (Chuẩn)</button>
+                <button type="button" onClick={() => setActiveOpacity(0.9)} className="hover:underline">90% (Rõ)</button>
+              </div>
+            </div>
+
+            {/* Hướng dẫn thao tác chuột trực tiếp */}
+            <div className="py-2 px-2.5 bg-amber-50 rounded-xl border border-amber-200/80 text-[11px] text-amber-900 space-y-1">
+              <div className="font-bold flex items-center gap-1 text-amber-800">
+                <span>🎯</span> Thao tác chuột trực tiếp trên bản đồ:
+              </div>
+              <p>
+                • <strong>Kéo các chốt 1, 2, 3, 4:</strong> Nắn chỉnh riêng từng góc để khít các ngã ba, khúc cong, ranh giới đất.
+              </p>
+              <p>
+                • <strong>Kéo chốt ✥ (Tâm):</strong> Dời toàn bộ tấm bản đồ theo chuột.
+              </p>
+            </div>
+
+            {/* D-Pad dịch chuyển theo mét */}
+            <div className="py-2.5 border-t border-gray-100">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-bold text-gray-700">Di chuyển tinh vi (D-Pad):</span>
+                <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-lg border border-gray-200">
+                  {[1, 2, 5, 20].map(m => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setCalibNudgeMeters(m)}
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                        calibNudgeMeters === m ? 'bg-amber-500 text-white' : 'text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {m}m
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Nút mũi tên D-Pad */}
+              <div className="grid grid-cols-3 gap-1.5 w-40 mx-auto">
+                <div></div>
+                <button
+                  type="button"
+                  onClick={() => nudge('up')}
+                  className="p-2 bg-gray-100 hover:bg-amber-100 hover:text-amber-700 active:bg-amber-200 rounded-xl border border-gray-200 font-bold flex flex-col items-center justify-center transition-all shadow-sm"
+                  title="Dịch lên Bắc"
+                >
+                  <span>⬆️</span>
+                  <span className="text-[9px]">Lên</span>
+                </button>
+                <div></div>
+
+                <button
+                  type="button"
+                  onClick={() => nudge('left')}
+                  className="p-2 bg-gray-100 hover:bg-amber-100 hover:text-amber-700 active:bg-amber-200 rounded-xl border border-gray-200 font-bold flex flex-col items-center justify-center transition-all shadow-sm"
+                  title="Dịch sang Tây"
+                >
+                  <span>⬅️</span>
+                  <span className="text-[9px]">Trái</span>
+                </button>
+                <div className="flex items-center justify-center font-bold text-amber-700 text-xs bg-amber-50 rounded-xl border border-amber-200">
+                  {calibNudgeMeters}m
+                </div>
+                <button
+                  type="button"
+                  onClick={() => nudge('right')}
+                  className="p-2 bg-gray-100 hover:bg-amber-100 hover:text-amber-700 active:bg-amber-200 rounded-xl border border-gray-200 font-bold flex flex-col items-center justify-center transition-all shadow-sm"
+                  title="Dịch sang Đông"
+                >
+                  <span>➡️</span>
+                  <span className="text-[9px]">Phải</span>
+                </button>
+
+                <div></div>
+                <button
+                  type="button"
+                  onClick={() => nudge('down')}
+                  className="p-2 bg-gray-100 hover:bg-amber-100 hover:text-amber-700 active:bg-amber-200 rounded-xl border border-gray-200 font-bold flex flex-col items-center justify-center transition-all shadow-sm"
+                  title="Dịch xuống Nam"
+                >
+                  <span>⬇️</span>
+                  <span className="text-[9px]">Xuống</span>
+                </button>
+                <div></div>
+              </div>
+            </div>
+
+            {/* Xoay & Co dãn bản đồ */}
+            <div className="py-2.5 border-t border-gray-100 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-gray-700">Xoay quanh tâm:</span>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => rotateLayer(-0.5)}
+                    className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-200 font-semibold"
+                    title="Xoay ngược chiều kim đồng hồ 0.5 độ"
+                  >
+                    ↺ -0.5°
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => rotateLayer(-0.1)}
+                    className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-200 font-semibold"
+                    title="Xoay ngược chiều kim đồng hồ 0.1 độ"
+                  >
+                    ↺ -0.1°
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => rotateLayer(0.1)}
+                    className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-200 font-semibold"
+                    title="Xoay thuận chiều kim đồng hồ 0.1 độ"
+                  >
+                    ↻ +0.1°
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => rotateLayer(0.5)}
+                    className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-200 font-semibold"
+                    title="Xoay thuận chiều kim đồng hồ 0.5 độ"
+                  >
+                    ↻ +0.5°
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-gray-700">Thu phóng kích thước:</span>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => scaleLayer(0.995)}
+                    className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-200 font-semibold"
+                    title="Thu nhỏ 0.5%"
+                  >
+                    🔍- Thu nhỏ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scaleLayer(1.005)}
+                    className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-200 font-semibold"
+                    title="Phóng to 0.5%"
+                  >
+                    🔍+ Phóng to
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-gray-700">Co dãn ngang / dọc:</span>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => scaleLayer(0.995, 'x')}
+                    className="px-1.5 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-200"
+                    title="Thu hẹp ngang 0.5%"
+                  >
+                    ↔️ Hẹp
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scaleLayer(1.005, 'x')}
+                    className="px-1.5 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-200"
+                    title="Mở rộng ngang 0.5%"
+                  >
+                    ↔️ Rộng
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scaleLayer(0.995, 'y')}
+                    className="px-1.5 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-200"
+                    title="Thu ngắn dọc 0.5%"
+                  >
+                    ↕️ Thấp
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scaleLayer(1.005, 'y')}
+                    className="px-1.5 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-200"
+                    title="Kéo dài dọc 0.5%"
+                  >
+                    ↕️ Cao
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Nút Hành động: Lưu, Copy, Reset, Đóng */}
+            <div className="pt-3 border-t border-gray-200 space-y-1.5">
+              <button
+                type="button"
+                onClick={saveCalibration}
+                className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 text-xs"
+              >
+                <span>💾</span>
+                <span>Lưu vị trí này (Lưu vào trình duyệt)</span>
+              </button>
+
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={copyCoords}
+                  className="py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold rounded-xl border border-blue-200 transition-colors flex items-center justify-center gap-1 text-[11px]"
+                  title="Sao chép mảng JSON 4 góc"
+                >
+                  <span>📋</span>
+                  <span>Sao chép mã</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={resetCalibration}
+                  className="py-1.5 bg-red-50 hover:bg-red-100 text-red-700 font-semibold rounded-xl border border-red-200 transition-colors flex items-center justify-center gap-1 text-[11px]"
+                  title="Khôi phục lại tọa độ gốc"
+                >
+                  <span>🔄</span>
+                  <span>Khôi phục gốc</span>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsCalibrating(false)}
+                className="w-full py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors text-center text-[11px]"
+              >
+                Hoàn tất căn chỉnh (Ẩn chốt)
+              </button>
+            </div>
+          </div>
+        )
+      )}
 
       {/* Toggles Panel */}
       <div className={`absolute bottom-6 left-6 z-[500] bg-white rounded-xl shadow-lg border border-gray-200 text-black transition-all duration-300 overflow-hidden flex flex-col ${isLayersCollapsed ? 'w-12 h-12' : 'w-80 sm:w-96'}`}>
