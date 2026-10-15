@@ -142,7 +142,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
         mapRef.current?.flyTo({ center: [109.1648, 11.9381], zoom: 13, duration: 1500 });
         break;
       case 'docduong34':
-        mapRef.current?.flyTo({ center: [109.1535, 11.9131], zoom: 15.5, duration: 1500 });
+        mapRef.current?.flyTo({ center: [109.1547, 11.9134], zoom: 16.5, duration: 1500 });
         break;
       case 'dc21':
         mapRef.current?.flyTo({ center: [109.1526, 11.9132], zoom: 17.5, duration: 1500 });
@@ -160,7 +160,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
         mapRef.current?.flyTo({ center: [109.1648, 11.9381], zoom: 13, duration: 2000 });
         break;
       case 'docduong34':
-        mapRef.current?.flyTo({ center: [109.1535, 11.9131], zoom: 15.5, duration: 2000 });
+        mapRef.current?.flyTo({ center: [109.1547, 11.9134], zoom: 16.5, duration: 2000 });
         break;
       case 'dc21':
         mapRef.current?.flyTo({ center: [109.1526, 11.9132], zoom: 17.5, duration: 2000 });
@@ -322,10 +322,10 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
           type="image" 
           url="/Map/docduong_3thang4.webp"
           coordinates={[
-            [109.143744, 11.921527], // Top-Left (Tây Bắc)
-            [109.163184, 11.921527], // Top-Right (Đông Bắc)
-            [109.163184, 11.904680], // Bottom-Right (Đông Nam)
-            [109.143744, 11.904680], // Bottom-Left (Tây Nam)
+            [109.150574, 11.914948], // Top-Left (Tây Bắc)
+            [109.158802, 11.914948], // Top-Right (Đông Bắc)
+            [109.158802, 11.911839], // Bottom-Right (Đông Nam)
+            [109.150574, 11.911839], // Bottom-Left (Tây Nam)
           ]}
         >
           <Layer 
