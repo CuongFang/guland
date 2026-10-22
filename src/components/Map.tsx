@@ -73,8 +73,13 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
   const [opacityKhuVuc1, setOpacityKhuVuc1] = useState(0); // Phân khu 1/2000 Khu vực 1
   const [opacityDocDuong34, setOpacityDocDuong34] = useState(0); // 1/500 Dọc đường 3/4
   const [opacityDc21, setOpacityDc21] = useState(0); // Địa chính 1/500 Tờ 21 Cam Thuận
+  const [opacityTo40, setOpacityTo40] = useState(0.85); // Địa chính Vector Tờ 40 Cam An Nam (389 thửa - GeoJSON)
+  const [opacityKhuVuc1Vector, setOpacityKhuVuc1Vector] = useState(0.8); // Quy hoạch Phân khu 1 Cam Ranh (1.472 ô - GeoJSON)
 
-  const [activePlanningLayer, setActivePlanningLayer] = useState<LayerKey>('2030');
+  const [activePlanningLayer, setActivePlanningLayer] = useState<LayerKey | 'to40' | 'khuvuc1_vector'>('2030');
+  const [selectedParcel, setSelectedParcel] = useState<{ lng: number; lat: number; properties: any } | null>(null);
+  const [selectedPlanningZone, setSelectedPlanningZone] = useState<{ lng: number; lat: number; properties: any } | null>(null);
+  const [isHoveredParcel, setIsHoveredParcel] = useState(false);
 
   // Quản lý tọa độ các lớp quy hoạch và chế độ Căn chỉnh thủ công bằng chuột
   const [layerCoords, setLayerCoords] = useState<Record<LayerKey, QuadCoords>>(DEFAULT_COORDS);
@@ -126,13 +131,15 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
     }
   }, []);
 
-  const getLayerName = (layer: LayerKey) => {
+  const getLayerName = (layer: LayerKey | 'to40' | 'khuvuc1_vector') => {
     switch (layer) {
       case '2045': return 'QHC Cam Ranh 2045 (1/10.000)';
       case '2030': return 'Sử dụng đất 2030 (1/25.000)';
       case 'khuvuc1': return 'Phân khu 1/2000 Khu vực 1';
       case 'docduong34': return 'Dọc đường 3 Tháng 4 (1/500)';
       case 'dc21': return 'Địa chính Tờ 21 (1/500)';
+      case 'to40': return 'Địa chính Tờ 40 Cam An Nam (Vector)';
+      case 'khuvuc1_vector': return 'Quy hoạch Phân khu 1 (Vector 1.472 ô)';
     }
   };
 
@@ -154,20 +161,23 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
 
   // Cập nhật tọa độ 1 góc khi người dùng kéo chuột
   const handleCornerDrag = (cornerIdx: number, lng: number, lat: number) => {
+    if (activePlanningLayer === 'to40' || activePlanningLayer === 'khuvuc1_vector') return;
+    const calibKey = activePlanningLayer as LayerKey;
     setLayerCoords(prev => {
-      const current = [...prev[activePlanningLayer]] as QuadCoords;
+      const current = [...prev[calibKey]] as QuadCoords;
       current[cornerIdx] = [lng, lat];
       const updated = {
         ...prev,
-        [activePlanningLayer]: current
+        [calibKey]: current
       };
-      updateSourceCoordinates(activePlanningLayer, current);
+      updateSourceCoordinates(calibKey, current);
       return updated;
     });
   };
 
   // Kéo điểm Tâm để di chuyển toàn bộ tấm bản đồ bằng delta chính xác
   const handleCenterDragDelta = (newLng: number, newLat: number) => {
+    if (activePlanningLayer === 'to40' || activePlanningLayer === 'khuvuc1_vector') return;
     if (!lastDragPointRef.current) {
       lastDragPointRef.current = { lng: newLng, lat: newLat };
       return;
@@ -192,6 +202,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
 
   // Dịch chuyển theo mét
   const nudge = (direction: 'up' | 'down' | 'left' | 'right') => {
+    if (activePlanningLayer === 'to40' || activePlanningLayer === 'khuvuc1_vector') return;
     const meters = calibNudgeMeters;
     const dLat = (meters / 110580.0) * (direction === 'up' ? 1 : direction === 'down' ? -1 : 0);
     const dLng = (meters / 108923.0) * (direction === 'right' ? 1 : direction === 'left' ? -1 : 0);
@@ -212,6 +223,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
 
   // Xoay bản đồ quanh tâm
   const rotateLayer = (deg: number) => {
+    if (activePlanningLayer === 'to40' || activePlanningLayer === 'khuvuc1_vector') return;
     setLayerCoords(prev => {
       const current = prev[activePlanningLayer];
       const cLng = (current[0][0] + current[1][0] + current[2][0] + current[3][0]) / 4;
@@ -242,6 +254,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
 
   // Thu phóng quanh tâm
   const scaleLayer = (factor: number, axis: 'both' | 'x' | 'y' = 'both') => {
+    if (activePlanningLayer === 'to40' || activePlanningLayer === 'khuvuc1_vector') return;
     setLayerCoords(prev => {
       const current = prev[activePlanningLayer];
       const cLng = (current[0][0] + current[1][0] + current[2][0] + current[3][0]) / 4;
@@ -265,6 +278,10 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
 
   // Lưu cấu hình vào localStorage
   const saveCalibration = () => {
+    if (activePlanningLayer === 'to40' || activePlanningLayer === 'khuvuc1_vector') {
+      alert('Lớp GeoJSON vector đã có tọa độ chuẩn GPS, không cần lưu căn chỉnh!');
+      return;
+    }
     try {
       localStorage.setItem('guland_calib_coords', JSON.stringify(layerCoords));
       alert(`Đã lưu thành công tọa độ căn chỉnh cho lớp "${getLayerName(activePlanningLayer)}"!`);
@@ -275,6 +292,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
 
   // Khôi phục mặc định
   const resetCalibration = () => {
+    if (activePlanningLayer === 'to40' || activePlanningLayer === 'khuvuc1_vector') return;
     if (confirm(`Bạn có chắc muốn khôi phục tọa độ mặc định ban đầu cho lớp "${getLayerName(activePlanningLayer)}"?`)) {
       const def = DEFAULT_COORDS[activePlanningLayer];
       setLayerCoords(prev => ({
@@ -292,6 +310,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
 
   // Sao chép tọa độ
   const copyCoords = () => {
+    if (activePlanningLayer === 'to40' || activePlanningLayer === 'khuvuc1_vector') return;
     const text = JSON.stringify(layerCoords[activePlanningLayer], null, 2);
     navigator.clipboard.writeText(text);
     alert('Đã sao chép mảng tọa độ vào Clipboard! Bạn có thể gửi lại cho chúng tôi để cập nhật cố định.');
@@ -331,6 +350,8 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       case 'khuvuc1': return opacityKhuVuc1;
       case 'docduong34': return opacityDocDuong34;
       case 'dc21': return opacityDc21;
+      case 'to40': return opacityTo40;
+      case 'khuvuc1_vector': return opacityKhuVuc1Vector;
       default: return opacity2030;
     }
   };
@@ -342,20 +363,24 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       case 'khuvuc1': setOpacityKhuVuc1(val); break;
       case 'docduong34': setOpacityDocDuong34(val); break;
       case 'dc21': setOpacityDc21(val); break;
+      case 'to40': setOpacityTo40(val); break;
+      case 'khuvuc1_vector': setOpacityKhuVuc1Vector(val); break;
     }
   };
 
   // Hàm chuyển tab trên thanh so sánh ngang: tự động bật độ mờ rõ ràng và bay mượt đến vị trí tương ứng
-  const handleSelectPlanningTab = (layer: '2030' | '2045' | 'khuvuc1' | 'docduong34' | 'dc21') => {
+  const handleSelectPlanningTab = (layer: '2030' | '2045' | 'khuvuc1' | 'docduong34' | 'dc21' | 'to40' | 'khuvuc1_vector') => {
     setActivePlanningLayer(layer);
     
-    // Tự động bật độ mờ 75% cho lớp đang chọn và tắt các lớp khác để tập trung so sánh rõ ràng
+    // Tự động bật độ mờ cho lớp đang chọn và tắt các lớp khác để tập trung so sánh rõ ràng
     const targetOpacity = 0.75;
     setOpacity2045(layer === '2045' ? targetOpacity : 0);
     setOpacity2030(layer === '2030' ? targetOpacity : 0);
     setOpacityKhuVuc1(layer === 'khuvuc1' ? targetOpacity : 0);
     setOpacityDocDuong34(layer === 'docduong34' ? targetOpacity : 0);
     setOpacityDc21(layer === 'dc21' ? targetOpacity : 0);
+    setOpacityTo40(layer === 'to40' ? 0.85 : 0);
+    setOpacityKhuVuc1Vector(layer === 'khuvuc1_vector' ? 0.8 : 0);
 
     // Tự động bay đến đúng tâm và đúng mức zoom tương ứng
     switch (layer) {
@@ -371,6 +396,12 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
         break;
       case 'dc21':
         mapRef.current?.flyTo({ center: [109.1526, 11.9132], zoom: 17.5, duration: 1500 });
+        break;
+      case 'to40':
+        mapRef.current?.flyTo({ center: [109.07435, 11.97525], zoom: 16.5, duration: 1500 });
+        break;
+      case 'khuvuc1_vector':
+        mapRef.current?.flyTo({ center: [109.1669, 11.9304], zoom: 14.5, duration: 1500 });
         break;
     }
   };
@@ -390,6 +421,41 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       case 'dc21':
         mapRef.current?.flyTo({ center: [109.1526, 11.9132], zoom: 17.5, duration: 2000 });
         break;
+      case 'to40':
+        mapRef.current?.flyTo({ center: [109.07435, 11.97525], zoom: 16.5, duration: 2000 });
+        break;
+      case 'khuvuc1_vector':
+        mapRef.current?.flyTo({ center: [109.1669, 11.9304], zoom: 14.5, duration: 2000 });
+        break;
+    }
+  };
+
+  const handleMapClick = (e: any) => {
+    if (measureMode !== 'none') return;
+    const features = e.features;
+    if (features && features.length > 0) {
+      // 1. Thửa đất địa chính Tờ 40
+      const parcel = features.find((f: any) => f.layer.id === 'cadastre-40-fill');
+      if (parcel) {
+        setSelectedPlanningZone(null);
+        setSelectedParcel({
+          lng: e.lngLat.lng,
+          lat: e.lngLat.lat,
+          properties: parcel.properties
+        });
+        return;
+      }
+      // 2. Ô quy hoạch phân khu 1
+      const zone = features.find((f: any) => f.layer.id === 'khuvuc1-vector-fill');
+      if (zone) {
+        setSelectedParcel(null);
+        setSelectedPlanningZone({
+          lng: e.lngLat.lng,
+          lat: e.lngLat.lat,
+          properties: zone.properties
+        });
+        return;
+      }
     }
   };
 
@@ -403,6 +469,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
         }}
         mapStyle={{
           version: 8,
+          glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
           sources: {
             'satellite': {
               type: 'raster',
@@ -420,7 +487,17 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
             }
           ]
         }}
-        style={{ width: '100%', height: '100%', cursor: measureMode !== 'none' ? 'crosshair' : 'grab' }}
+        interactiveLayerIds={['cadastre-40-fill', 'khuvuc1-vector-fill']}
+        onClick={handleMapClick}
+        onMouseEnter={(e: any) => {
+          if (e.features && e.features.length > 0) {
+            setIsHoveredParcel(true);
+          }
+        }}
+        onMouseLeave={() => {
+          setIsHoveredParcel(false);
+        }}
+        style={{ width: '100%', height: '100%', cursor: measureMode !== 'none' ? 'crosshair' : isHoveredParcel ? 'pointer' : 'grab' }}
       >
         <NavigationControl position="bottom-right" />
 
@@ -560,6 +637,110 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
           />
         </Source>
 
+        {/* 6. Lớp Bản đồ Địa chính Vector Tờ 40 Cam An Nam (389 thửa - GeoJSON) */}
+        <Source id="cadastre-to40" type="geojson" data="/Map/1111111111.geojson">
+          {/* Lớp Fill tô màu phân loại đất */}
+          <Layer 
+            id="cadastre-40-fill" 
+            type="fill" 
+            paint={{ 
+              'fill-color': [
+                'match',
+                ['get', 'KHLOAIDAT'],
+                'ONT', '#f43f5e',
+                'ONT+LNQ', '#fb7185',
+                'ONT+CLN', '#f472b6',
+                'ONT+BHK', '#f472b6',
+                'CLN', '#f59e0b',
+                'BHK', '#eab308',
+                'HNK', '#facc15',
+                'LUK', '#84cc16',
+                'LUC', '#a3e635',
+                'BCS', '#94a3b8',
+                'DGT', '#64748b',
+                'DTL', '#0284c7',
+                'SON', '#38bdf8',
+                'TSC', '#8b5cf6',
+                'SKC', '#a855f7',
+                'CSD', '#6366f1',
+                '#e2e8f0'
+              ],
+              'fill-opacity': opacityTo40 * 0.65
+            }} 
+          />
+          {/* Lớp Viền ranh thửa đất sắc nét */}
+          <Layer 
+            id="cadastre-40-line" 
+            type="line" 
+            paint={{ 
+              'line-color': '#dc2626',
+              'line-width': [
+                'interpolate', ['linear'], ['zoom'],
+                14, 0.8,
+                17, 1.8,
+                20, 2.5
+              ],
+              'line-opacity': opacityTo40 > 0 ? 0.95 : 0
+            }} 
+          />
+          {/* Lớp Nhãn hiển thị Số thửa & Loại đất */}
+          <Layer 
+            id="cadastre-40-label" 
+            type="symbol" 
+            minzoom={16}
+            layout={{ 
+              'text-field': [
+                'concat',
+                ['to-string', ['get', 'SHTHUA']],
+                '\n',
+                ['to-string', ['get', 'KHLOAIDAT']]
+              ],
+              'text-size': [
+                'interpolate', ['linear'], ['zoom'],
+                16, 9,
+                18, 12,
+                20, 14
+              ],
+              'text-anchor': 'center',
+              'text-allow-overlap': false
+            }}
+            paint={{ 
+              'text-color': '#0f172a',
+              'text-halo-color': '#ffffff',
+              'text-halo-width': 1.5,
+              'text-opacity': opacityTo40 > 0 ? 0.95 : 0
+            }} 
+          />
+        </Source>
+
+        {/* 7. Lớp Bản đồ Quy hoạch Phân khu 1 Cam Ranh (1.472 ô quy hoạch - GeoJSON Vector) */}
+        <Source id="khuvuc1-vector" type="geojson" data="/Map/khuvuc1_camranh_vector.geojson">
+          {/* Lớp Fill tô màu quy hoạch chức năng đất */}
+          <Layer 
+            id="khuvuc1-vector-fill" 
+            type="fill" 
+            paint={{ 
+              'fill-color': ['get', 'MauSac'], 
+              'fill-opacity': opacityKhuVuc1Vector * 0.65 
+            }} 
+          />
+          {/* Lớp Viền ranh giới quy hoạch */}
+          <Layer 
+            id="khuvuc1-vector-line" 
+            type="line" 
+            paint={{ 
+              'line-color': '#ffffff', 
+              'line-width': [
+                'interpolate', ['linear'], ['zoom'],
+                12, 0.5,
+                15, 1.2,
+                18, 2.0
+              ],
+              'line-opacity': opacityKhuVuc1Vector > 0 ? 0.85 : 0 
+            }} 
+          />
+        </Source>
+
         {/* Heatmap Layer */}
         {showHeatmap && (
           <Source id="properties-heatmap" type="geojson" data={geojson as any}>
@@ -647,10 +828,117 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
           </Popup>
         )}
 
+        {/* Popup Thông tin Thửa đất GeoJSON */}
+        {selectedParcel && (
+          <Popup
+            longitude={selectedParcel.lng}
+            latitude={selectedParcel.lat}
+            anchor="bottom"
+            offset={15}
+            onClose={() => setSelectedParcel(null)}
+            className="z-50"
+          >
+            <div className="p-1 min-w-[220px] text-xs">
+              <div className="flex items-center justify-between pb-1.5 border-b border-gray-200">
+                <span className="font-bold text-red-600 text-sm">
+                  Thửa #{selectedParcel.properties.SHTHUA}
+                </span>
+                <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold text-[10px]">
+                  Tờ #{selectedParcel.properties.SHBANDO || '40'}
+                </span>
+              </div>
+              <div className="space-y-1.5 mt-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500">Diện tích:</span>
+                  <span className="font-bold text-emerald-600 text-sm">
+                    {Number(selectedParcel.properties.DIENTICH || 0).toLocaleString('vi-VN')} m²
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500">Loại đất:</span>
+                  <span className="font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                    {selectedParcel.properties.KHLOAIDAT || selectedParcel.properties.MDSD2003 || 'Chưa xác định'}
+                  </span>
+                </div>
+                {selectedParcel.properties.DIADANH && (
+                  <div className="flex justify-between items-start gap-1">
+                    <span className="text-gray-500 whitespace-nowrap">Chủ / Địa danh:</span>
+                    <span className="font-semibold text-gray-800 text-right">
+                      {selectedParcel.properties.DIADANH}
+                    </span>
+                  </div>
+                )}
+                {selectedParcel.properties.DaCapGCN !== undefined && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500">Cấp GCN:</span>
+                    <span className="text-[11px] text-gray-700">
+                      {selectedParcel.properties.DaCapGCN === 1 ? '✅ Đã cấp GCN' : 'Chưa cấp GCN'}
+                    </span>
+                  </div>
+                )}
+                <div className="text-[10px] text-gray-500 pt-1.5 border-t border-gray-100 flex items-center justify-between">
+                  <span>📍 Cam An Nam, Cam Lâm</span>
+                  <span className="text-gray-400">#ID: {selectedParcel.properties.ID}</span>
+                </div>
+              </div>
+            </div>
+          </Popup>
+        )}
+
+        {/* Popup Ô Quy hoạch Phân khu 1 GeoJSON */}
+        {selectedPlanningZone && (
+          <Popup
+            longitude={selectedPlanningZone.lng}
+            latitude={selectedPlanningZone.lat}
+            anchor="bottom"
+            offset={15}
+            onClose={() => setSelectedPlanningZone(null)}
+            className="z-50"
+          >
+            <div className="p-1 min-w-[240px] text-xs">
+              <div className="flex items-center justify-between pb-1.5 border-b border-gray-200">
+                <span className="font-bold text-sm text-gray-900 flex items-center gap-1.5">
+                  <span
+                    className="w-3.5 h-3.5 rounded-full inline-block border border-gray-300 shadow-sm"
+                    style={{ backgroundColor: selectedPlanningZone.properties.MauSac || '#3b82f6' }}
+                  />
+                  <span>{selectedPlanningZone.properties.TenQuyHoach || 'Quy hoạch xây dựng'}</span>
+                </span>
+              </div>
+              <div className="space-y-1.5 mt-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500">Mã lớp CAD:</span>
+                  <span className="font-mono text-[10px] text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">
+                    {selectedPlanningZone.properties.Layer}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500">Khu vực:</span>
+                  <span className="font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                    Phân khu 1 Cam Ranh
+                  </span>
+                </div>
+                {selectedPlanningZone.properties.Text && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500">Ký hiệu bản vẽ:</span>
+                    <span className="font-semibold text-gray-800">
+                      {selectedPlanningZone.properties.Text}
+                    </span>
+                  </div>
+                )}
+                <div className="text-[10px] text-gray-400 pt-1.5 border-t border-gray-100 flex items-center justify-between">
+                  <span>📍 Ven vịnh Cam Ranh</span>
+                  <span>ID: #{selectedPlanningZone.properties.ID}</span>
+                </div>
+              </div>
+            </div>
+          </Popup>
+        )}
+
         <MeasurementControlMapLibre mode={measureMode} setMode={setMeasureMode} />
 
         {/* 4 Chốt kéo ở 4 góc và 1 Chốt tâm khi bật Chế độ Căn chỉnh thủ công */}
-        {isCalibrating && layerCoords[activePlanningLayer] && (
+        {isCalibrating && activePlanningLayer !== 'to40' && activePlanningLayer !== 'khuvuc1_vector' && layerCoords[activePlanningLayer as LayerKey] && (
           <>
             {/* Chốt 1: Top-Left (Tây Bắc) */}
             <Marker
@@ -785,6 +1073,20 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
               className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'dc21' ? 'bg-rose-600 text-white font-bold shadow-sm' : 'hover:bg-gray-100'}`}
             >
               Tờ 21 (1/500)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSelectPlanningTab('khuvuc1_vector')}
+              className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'khuvuc1_vector' ? 'bg-amber-600 text-white font-bold shadow-sm' : 'hover:bg-gray-100'}`}
+            >
+              PK1 (Vector)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSelectPlanningTab('to40')}
+              className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'to40' ? 'bg-emerald-600 text-white font-bold shadow-sm' : 'hover:bg-gray-100'}`}
+            >
+              Tờ 40 (Vector)
             </button>
           </div>
 
@@ -1421,6 +1723,78 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
                     mapRef.current?.flyTo({ center: [109.1526, 11.9132], zoom: 17.5, duration: 2000 });
                   }}
                   className="px-2 py-0.5 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded text-[10px] font-medium border border-rose-200 flex items-center gap-0.5"
+                >
+                  📍 Định vị
+                </button>
+              </div>
+            </div>
+
+            {/* 7. Bản đồ Địa chính Vector Tờ 40 Cam An Nam (389 thửa) */}
+            <div className="space-y-1 pt-2.5">
+              <div className="flex justify-between items-center text-xs font-semibold">
+                <span className="flex items-center gap-1 text-gray-800">
+                  🗺️ <span>Địa chính Tờ 40 Cam An Nam</span>
+                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200">Vector 389 thửa</span>
+                </span>
+                <span className="text-emerald-600 font-bold">{Math.round(opacityTo40 * 100)}%</span>
+              </div>
+              <input 
+                type="range" 
+                min="0" max="1" step="0.05"
+                value={opacityTo40}
+                onChange={e => setOpacityTo40(parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+              />
+              <div className="flex justify-between items-center text-[10px]">
+                <div className="flex gap-2 text-gray-500">
+                  <button type="button" onClick={() => setOpacityTo40(0)} className="hover:underline">0%</button>
+                  <button type="button" onClick={() => setOpacityTo40(0.5)} className="hover:underline">50%</button>
+                  <button type="button" onClick={() => setOpacityTo40(1)} className="hover:underline">100%</button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (opacityTo40 === 0) setOpacityTo40(0.85);
+                    setActivePlanningLayer('to40');
+                    mapRef.current?.flyTo({ center: [109.07435, 11.97525], zoom: 16.5, duration: 2000 });
+                  }}
+                  className="px-2 py-0.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded text-[10px] font-medium border border-emerald-200 flex items-center gap-0.5"
+                >
+                  📍 Định vị
+                </button>
+              </div>
+            </div>
+
+            {/* 8. Bản đồ Quy hoạch Phân khu 1 Cam Ranh (Vector 1.472 ô) */}
+            <div className="space-y-1 pt-2.5">
+              <div className="flex justify-between items-center text-xs font-semibold">
+                <span className="flex items-center gap-1 text-gray-800">
+                  🏗️ <span>Quy hoạch Phân khu 1</span>
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-200">Vector 1.472 ô</span>
+                </span>
+                <span className="text-amber-600 font-bold">{Math.round(opacityKhuVuc1Vector * 100)}%</span>
+              </div>
+              <input 
+                type="range" 
+                min="0" max="1" step="0.05"
+                value={opacityKhuVuc1Vector}
+                onChange={e => setOpacityKhuVuc1Vector(parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-amber-600"
+              />
+              <div className="flex justify-between items-center text-[10px]">
+                <div className="flex gap-2 text-gray-500">
+                  <button type="button" onClick={() => setOpacityKhuVuc1Vector(0)} className="hover:underline">0%</button>
+                  <button type="button" onClick={() => setOpacityKhuVuc1Vector(0.5)} className="hover:underline">50%</button>
+                  <button type="button" onClick={() => setOpacityKhuVuc1Vector(1)} className="hover:underline">100%</button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (opacityKhuVuc1Vector === 0) setOpacityKhuVuc1Vector(0.8);
+                    setActivePlanningLayer('khuvuc1_vector');
+                    mapRef.current?.flyTo({ center: [109.1669, 11.9304], zoom: 14.5, duration: 2000 });
+                  }}
+                  className="px-2 py-0.5 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded text-[10px] font-medium border border-amber-200 flex items-center gap-0.5"
                 >
                   📍 Định vị
                 </button>
