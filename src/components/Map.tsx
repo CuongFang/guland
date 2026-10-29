@@ -23,8 +23,13 @@ type Property = {
   google_map_link?: string;
 };
 
-export type LayerKey = '2030' | '2045' | 'khuvuc1' | 'docduong34' | 'dc21';
+export type LayerKey = '2030' | '2045' | 'khuvuc1' | 'docduong34' | 'dc21' | 'camtan_webp';
+export type PlanningLayerType = LayerKey | 'to40' | 'khuvuc1_vector' | 'camtan_1500';
 export type QuadCoords = [[number, number], [number, number], [number, number], [number, number]];
+
+const isCalibratableLayer = (layer: PlanningLayerType): layer is LayerKey => {
+  return layer === '2030' || layer === '2045' || layer === 'khuvuc1' || layer === 'docduong34' || layer === 'dc21' || layer === 'camtan_webp';
+};
 
 export const DEFAULT_COORDS: Record<LayerKey, QuadCoords> = {
   '2045': [
@@ -57,6 +62,12 @@ export const DEFAULT_COORDS: Record<LayerKey, QuadCoords> = {
     [109.154187, 11.911618],
     [109.150975, 11.911628],
   ],
+  'camtan_webp': [
+    [109.09220754, 12.13740052], // Top-Left (Tây Bắc)
+    [109.11479040, 12.13740052], // Top-Right (Đông Bắc)
+    [109.11479040, 12.10606002], // Bottom-Right (Đông Nam)
+    [109.09220754, 12.10606002], // Bottom-Left (Tây Nam)
+  ],
 };
 
 export default function MapLibreWrapper({ properties = [], searchLocation }: { properties?: Property[], searchLocation?: [number, number] | null }) {
@@ -75,8 +86,10 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
   const [opacityDc21, setOpacityDc21] = useState(0); // Địa chính 1/500 Tờ 21 Cam Thuận
   const [opacityTo40, setOpacityTo40] = useState(0.85); // Địa chính Vector Tờ 40 Cam An Nam (389 thửa - GeoJSON)
   const [opacityKhuVuc1Vector, setOpacityKhuVuc1Vector] = useState(0.8); // Quy hoạch Phân khu 1 Cam Ranh (1.472 ô - GeoJSON)
+  const [opacityCamTan1500, setOpacityCamTan1500] = useState(0.95); // Quy hoạch 1/500 Cam Tân - PA2 (Multi-tile 10K×14K)
+  const [opacityCamTanWebp, setOpacityCamTanWebp] = useState(0); // Quy hoạch 1/500 Cam Tân - PA1 (Ảnh đơn WebP 8K)
 
-  const [activePlanningLayer, setActivePlanningLayer] = useState<LayerKey | 'to40' | 'khuvuc1_vector'>('2030');
+  const [activePlanningLayer, setActivePlanningLayer] = useState<PlanningLayerType>('camtan_1500');
   const [selectedParcel, setSelectedParcel] = useState<{ lng: number; lat: number; properties: any } | null>(null);
   const [selectedPlanningZone, setSelectedPlanningZone] = useState<{ lng: number; lat: number; properties: any } | null>(null);
   const [isHoveredParcel, setIsHoveredParcel] = useState(false);
@@ -131,7 +144,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
     }
   }, []);
 
-  const getLayerName = (layer: LayerKey | 'to40' | 'khuvuc1_vector') => {
+  const getLayerName = (layer: PlanningLayerType) => {
     switch (layer) {
       case '2045': return 'QHC Cam Ranh 2045 (1/10.000)';
       case '2030': return 'Sử dụng đất 2030 (1/25.000)';
@@ -140,6 +153,8 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       case 'dc21': return 'Địa chính Tờ 21 (1/500)';
       case 'to40': return 'Địa chính Tờ 40 Cam An Nam (Vector)';
       case 'khuvuc1_vector': return 'Quy hoạch Phân khu 1 (Vector 1.472 ô)';
+      case 'camtan_1500': return 'QH 1/500 Cam Tân - PA2 (Đa mảnh 14K)';
+      case 'camtan_webp': return 'QH 1/500 Cam Tân - PA1 (Ảnh ghép WebP)';
     }
   };
 
@@ -150,6 +165,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       'khuvuc1': 'planning-khuvuc1',
       'docduong34': 'planning-docduong34',
       'dc21': 'planning-dc21',
+      'camtan_webp': 'planning-camtan-webp',
     };
     if (mapRef.current) {
       const src = mapRef.current.getSource(sourceIdMap[layerKey]) as any;
@@ -161,7 +177,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
 
   // Cập nhật tọa độ 1 góc khi người dùng kéo chuột
   const handleCornerDrag = (cornerIdx: number, lng: number, lat: number) => {
-    if (activePlanningLayer === 'to40' || activePlanningLayer === 'khuvuc1_vector') return;
+    if (!isCalibratableLayer(activePlanningLayer)) return;
     const calibKey = activePlanningLayer as LayerKey;
     setLayerCoords(prev => {
       const current = [...prev[calibKey]] as QuadCoords;
@@ -177,7 +193,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
 
   // Kéo điểm Tâm để di chuyển toàn bộ tấm bản đồ bằng delta chính xác
   const handleCenterDragDelta = (newLng: number, newLat: number) => {
-    if (activePlanningLayer === 'to40' || activePlanningLayer === 'khuvuc1_vector') return;
+    if (!isCalibratableLayer(activePlanningLayer)) return;
     if (!lastDragPointRef.current) {
       lastDragPointRef.current = { lng: newLng, lat: newLat };
       return;
@@ -202,7 +218,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
 
   // Dịch chuyển theo mét
   const nudge = (direction: 'up' | 'down' | 'left' | 'right') => {
-    if (activePlanningLayer === 'to40' || activePlanningLayer === 'khuvuc1_vector') return;
+    if (!isCalibratableLayer(activePlanningLayer)) return;
     const meters = calibNudgeMeters;
     const dLat = (meters / 110580.0) * (direction === 'up' ? 1 : direction === 'down' ? -1 : 0);
     const dLng = (meters / 108923.0) * (direction === 'right' ? 1 : direction === 'left' ? -1 : 0);
@@ -223,7 +239,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
 
   // Xoay bản đồ quanh tâm
   const rotateLayer = (deg: number) => {
-    if (activePlanningLayer === 'to40' || activePlanningLayer === 'khuvuc1_vector') return;
+    if (!isCalibratableLayer(activePlanningLayer)) return;
     setLayerCoords(prev => {
       const current = prev[activePlanningLayer];
       const cLng = (current[0][0] + current[1][0] + current[2][0] + current[3][0]) / 4;
@@ -254,7 +270,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
 
   // Thu phóng quanh tâm
   const scaleLayer = (factor: number, axis: 'both' | 'x' | 'y' = 'both') => {
-    if (activePlanningLayer === 'to40' || activePlanningLayer === 'khuvuc1_vector') return;
+    if (!isCalibratableLayer(activePlanningLayer)) return;
     setLayerCoords(prev => {
       const current = prev[activePlanningLayer];
       const cLng = (current[0][0] + current[1][0] + current[2][0] + current[3][0]) / 4;
@@ -278,7 +294,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
 
   // Lưu cấu hình vào localStorage
   const saveCalibration = () => {
-    if (activePlanningLayer === 'to40' || activePlanningLayer === 'khuvuc1_vector') {
+    if (!isCalibratableLayer(activePlanningLayer)) {
       alert('Lớp GeoJSON vector đã có tọa độ chuẩn GPS, không cần lưu căn chỉnh!');
       return;
     }
@@ -292,7 +308,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
 
   // Khôi phục mặc định
   const resetCalibration = () => {
-    if (activePlanningLayer === 'to40' || activePlanningLayer === 'khuvuc1_vector') return;
+    if (!isCalibratableLayer(activePlanningLayer)) return;
     if (confirm(`Bạn có chắc muốn khôi phục tọa độ mặc định ban đầu cho lớp "${getLayerName(activePlanningLayer)}"?`)) {
       const def = DEFAULT_COORDS[activePlanningLayer];
       setLayerCoords(prev => ({
@@ -310,7 +326,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
 
   // Sao chép tọa độ
   const copyCoords = () => {
-    if (activePlanningLayer === 'to40' || activePlanningLayer === 'khuvuc1_vector') return;
+    if (!isCalibratableLayer(activePlanningLayer)) return;
     const text = JSON.stringify(layerCoords[activePlanningLayer], null, 2);
     navigator.clipboard.writeText(text);
     alert('Đã sao chép mảng tọa độ vào Clipboard! Bạn có thể gửi lại cho chúng tôi để cập nhật cố định.');
@@ -352,6 +368,8 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       case 'dc21': return opacityDc21;
       case 'to40': return opacityTo40;
       case 'khuvuc1_vector': return opacityKhuVuc1Vector;
+      case 'camtan_1500': return opacityCamTan1500;
+      case 'camtan_webp': return opacityCamTanWebp;
       default: return opacity2030;
     }
   };
@@ -365,11 +383,13 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       case 'dc21': setOpacityDc21(val); break;
       case 'to40': setOpacityTo40(val); break;
       case 'khuvuc1_vector': setOpacityKhuVuc1Vector(val); break;
+      case 'camtan_1500': setOpacityCamTan1500(val); break;
+      case 'camtan_webp': setOpacityCamTanWebp(val); break;
     }
   };
 
   // Hàm chuyển tab trên thanh so sánh ngang: tự động bật độ mờ rõ ràng và bay mượt đến vị trí tương ứng
-  const handleSelectPlanningTab = (layer: '2030' | '2045' | 'khuvuc1' | 'docduong34' | 'dc21' | 'to40' | 'khuvuc1_vector') => {
+  const handleSelectPlanningTab = (layer: PlanningLayerType) => {
     setActivePlanningLayer(layer);
     
     // Tự động bật độ mờ cho lớp đang chọn và tắt các lớp khác để tập trung so sánh rõ ràng
@@ -381,6 +401,8 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
     setOpacityDc21(layer === 'dc21' ? targetOpacity : 0);
     setOpacityTo40(layer === 'to40' ? 0.85 : 0);
     setOpacityKhuVuc1Vector(layer === 'khuvuc1_vector' ? 0.8 : 0);
+    setOpacityCamTan1500(layer === 'camtan_1500' ? 0.95 : 0);
+    setOpacityCamTanWebp(layer === 'camtan_webp' ? 0.95 : 0);
 
     // Tự động bay đến đúng tâm và đúng mức zoom tương ứng
     switch (layer) {
@@ -403,6 +425,16 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       case 'khuvuc1_vector':
         mapRef.current?.flyTo({ center: [109.1669, 11.9304], zoom: 14.5, duration: 1500 });
         break;
+      case 'camtan_1500':
+      case 'camtan_webp': {
+        // Nếu người dùng đang đứng sẵn trong khu vực Cam Tân để so sánh PA1 và PA2 thì giữ nguyên vị trí & độ zoom!
+        const center = mapRef.current?.getCenter();
+        const inCamTan = center && center.lat > 12.09 && center.lat < 12.15 && center.lng > 109.08 && center.lng < 109.13;
+        if (!inCamTan) {
+          mapRef.current?.flyTo({ center: [109.1035, 12.1217], zoom: 15.2, duration: 1500 });
+        }
+        break;
+      }
     }
   };
 
@@ -426,6 +458,10 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
         break;
       case 'khuvuc1_vector':
         mapRef.current?.flyTo({ center: [109.1669, 11.9304], zoom: 14.5, duration: 2000 });
+        break;
+      case 'camtan_1500':
+      case 'camtan_webp':
+        mapRef.current?.flyTo({ center: [109.1035, 12.1217], zoom: 15.2, duration: 2000 });
         break;
     }
   };
@@ -741,6 +777,44 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
           />
         </Source>
 
+        {/* 8. Lớp Bản đồ Quy hoạch 1/500 Cam Tân - PA2 (Multi-tile Pyramid z12..z18 siêu nét) */}
+        <Source
+          id="planning-camtan-1500"
+          type="raster"
+          tiles={['/Map/camtan_tiles/{z}/{x}/{y}.webp']}
+          tileSize={512}
+          minzoom={12}
+          maxzoom={18}
+          bounds={[109.09220754, 12.10606002, 109.11479040, 12.13740052]}
+        >
+          <Layer
+            id="planning-layer-camtan-1500"
+            type="raster"
+            paint={{
+              'raster-opacity': opacityCamTan1500,
+              'raster-fade-duration': 0,
+              'raster-resampling': 'linear'
+            }}
+          />
+        </Source>
+
+        {/* 9. Lớp Bản đồ Quy hoạch 1/500 Cam Tân - PA1 (Ảnh ghép đơn .webp 5808x8192) */}
+        <Source
+          id="planning-camtan-webp"
+          type="image"
+          url="/Map/camtan_1500.webp"
+          coordinates={layerCoords['camtan_webp']}
+        >
+          <Layer
+            id="planning-layer-camtan-webp"
+            type="raster"
+            paint={{
+              'raster-opacity': opacityCamTanWebp,
+              'raster-fade-duration': 0
+            }}
+          />
+        </Source>
+
         {/* Heatmap Layer */}
         {showHeatmap && (
           <Source id="properties-heatmap" type="geojson" data={geojson as any}>
@@ -938,7 +1012,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
         <MeasurementControlMapLibre mode={measureMode} setMode={setMeasureMode} />
 
         {/* 4 Chốt kéo ở 4 góc và 1 Chốt tâm khi bật Chế độ Căn chỉnh thủ công */}
-        {isCalibrating && activePlanningLayer !== 'to40' && activePlanningLayer !== 'khuvuc1_vector' && layerCoords[activePlanningLayer as LayerKey] && (
+        {isCalibrating && isCalibratableLayer(activePlanningLayer) && layerCoords[activePlanningLayer] && (
           <>
             {/* Chốt 1: Top-Left (Tây Bắc) */}
             <Marker
@@ -1037,56 +1111,31 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       {/* Floating Horizontal Comparison Slider (Thanh kéo trượt ngang so sánh Hiện trạng & Quy hoạch) */}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[450] max-w-[95vw] sm:max-w-2xl">
         <div className="bg-white/95 backdrop-blur-md px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl shadow-xl border border-gray-200/90 flex flex-col gap-1.5 text-xs sm:text-sm font-semibold select-none">
-          {/* Tabs chọn nhanh bản đồ gán vào thanh trượt ngang */}
-          <div className="flex items-center justify-center gap-1 overflow-x-auto pb-1 max-w-full text-[11px] font-medium text-gray-600 scrollbar-none">
+          {/* Tabs chọn nhanh 3 bản đồ mới nhất trên thanh trượt ngang */}
+          <div className="flex items-center justify-center gap-1.5 overflow-x-auto pb-1 max-w-full text-xs font-medium text-gray-600 scrollbar-none">
             <button
               type="button"
-              onClick={() => handleSelectPlanningTab('2045')}
-              className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === '2045' ? 'bg-indigo-600 text-white font-bold shadow-sm' : 'hover:bg-gray-100'}`}
+              onClick={() => handleSelectPlanningTab('to40')}
+              className={`px-2.5 py-1 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'to40' ? 'bg-emerald-600 text-white font-bold shadow-sm' : 'hover:bg-gray-100'}`}
+              title="Địa chính Tờ 40 Cam An Nam (389 thửa Vector)"
             >
-              QHC 2045 (1/10k)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSelectPlanningTab('2030')}
-              className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === '2030' ? 'bg-blue-600 text-white font-bold shadow-sm' : 'hover:bg-gray-100'}`}
-            >
-              SDĐ 2030 (1/25k)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSelectPlanningTab('khuvuc1')}
-              className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'khuvuc1' ? 'bg-amber-600 text-white font-bold shadow-sm' : 'hover:bg-gray-100'}`}
-            >
-              Khu vực 1 (1/2k)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSelectPlanningTab('docduong34')}
-              className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'docduong34' ? 'bg-purple-600 text-white font-bold shadow-sm' : 'hover:bg-gray-100'}`}
-            >
-              Đường 3/4 (1/500)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSelectPlanningTab('dc21')}
-              className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'dc21' ? 'bg-rose-600 text-white font-bold shadow-sm' : 'hover:bg-gray-100'}`}
-            >
-              Tờ 21 (1/500)
+              Tờ 40 (Vector)
             </button>
             <button
               type="button"
               onClick={() => handleSelectPlanningTab('khuvuc1_vector')}
-              className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'khuvuc1_vector' ? 'bg-amber-600 text-white font-bold shadow-sm' : 'hover:bg-gray-100'}`}
+              className={`px-2.5 py-1 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'khuvuc1_vector' ? 'bg-amber-600 text-white font-bold shadow-sm' : 'hover:bg-gray-100'}`}
+              title="Quy hoạch Phân khu 1 Cam Ranh (1.472 ô Vector)"
             >
-              PK1 (Vector)
+              Phân khu 1 (Vector)
             </button>
             <button
               type="button"
-              onClick={() => handleSelectPlanningTab('to40')}
-              className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'to40' ? 'bg-emerald-600 text-white font-bold shadow-sm' : 'hover:bg-gray-100'}`}
+              onClick={() => handleSelectPlanningTab('camtan_1500')}
+              className={`px-2.5 py-1 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'camtan_1500' ? 'bg-cyan-600 text-white font-bold shadow-sm' : 'hover:bg-gray-100'}`}
+              title="Quy hoạch 1/500 Cam Tân - Cam Lâm (Đa mảnh siêu nét 14K)"
             >
-              Tờ 40 (Vector)
+              QH 1/500 Cam Tân
             </button>
           </div>
 
@@ -1236,6 +1285,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
                   { key: 'dc21', label: 'Tờ 21 (1/500)' },
                   { key: '2045', label: 'QHC 2045' },
                   { key: '2030', label: 'SDĐ 2030' },
+                  { key: 'camtan_webp', label: 'Cam Tân (PA1)' },
                 ].map(item => (
                   <button
                     key={item.key}
@@ -1507,7 +1557,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       <div className={`absolute bottom-6 left-6 z-[500] bg-white rounded-xl shadow-lg border border-gray-200 text-black transition-all duration-300 overflow-hidden flex flex-col ${isLayersCollapsed ? 'w-12 h-12' : 'w-80 sm:w-96'}`}>
         {/* Nút thu gọn / mở rộng */}
         <div className={`flex items-center ${isLayersCollapsed ? 'justify-center w-full h-full' : 'justify-between px-4 py-3 border-b border-gray-100 bg-gray-50'}`}>
-          {!isLayersCollapsed && <span className="font-bold text-gray-800">Lớp Bản đồ ({[streetMapOpacity, opacity2045, opacity2030, opacityKhuVuc1, opacityDocDuong34, opacityDc21].filter(o => o > 0).length} đang bật)</span>}
+          {!isLayersCollapsed && <span className="font-bold text-gray-800">Lớp Bản đồ ({[streetMapOpacity, opacity2045, opacity2030, opacityKhuVuc1, opacityDocDuong34, opacityDc21, opacityTo40, opacityKhuVuc1Vector, opacityCamTan1500, opacityCamTanWebp].filter(o => o > 0).length} đang bật)</span>}
           <button 
             onClick={() => setIsLayersCollapsed(!isLayersCollapsed)}
             className="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-200 rounded-full transition-colors"
@@ -1795,6 +1845,79 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
                     mapRef.current?.flyTo({ center: [109.1669, 11.9304], zoom: 14.5, duration: 2000 });
                   }}
                   className="px-2 py-0.5 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded text-[10px] font-medium border border-amber-200 flex items-center gap-0.5"
+                >
+                  📍 Định vị
+                </button>
+              </div>
+            </div>
+
+            {/* 9. Bản đồ Quy hoạch 1/500 Cam Tân - PA1 (Ảnh ghép đơn .webp) */}
+            <div className="space-y-1 pt-2.5">
+              <div className="flex justify-between items-center text-xs font-semibold">
+                <span className="flex items-center gap-1 text-gray-800">
+                  🖼️ <span>QH 1/500 Cam Tân (PA1)</span>
+                  <span className="text-[10px] font-bold text-teal-700 bg-teal-50 px-1 py-0.5 rounded border border-teal-200">1 Ảnh WebP</span>
+                </span>
+                <span className="text-teal-600 font-bold">{Math.round(opacityCamTanWebp * 100)}%</span>
+              </div>
+              <input 
+                type="range" 
+                min="0" max="1" step="0.05"
+                value={opacityCamTanWebp}
+                onChange={e => setOpacityCamTanWebp(parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-teal-600"
+              />
+              <div className="flex justify-between items-center text-[10px]">
+                <div className="flex gap-2 text-gray-500">
+                  <button type="button" onClick={() => setOpacityCamTanWebp(0)} className="hover:underline">0%</button>
+                  <button type="button" onClick={() => setOpacityCamTanWebp(0.5)} className="hover:underline">50%</button>
+                  <button type="button" onClick={() => setOpacityCamTanWebp(1)} className="hover:underline">100%</button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (opacityCamTanWebp === 0) setOpacityCamTanWebp(0.95);
+                    setOpacityCamTan1500(0);
+                    setActivePlanningLayer('camtan_webp');
+                    mapRef.current?.flyTo({ center: [109.1035, 12.1217], zoom: 15.2, duration: 2000 });
+                  }}
+                  className="px-2 py-0.5 bg-teal-50 text-teal-700 hover:bg-teal-100 rounded text-[10px] font-medium border border-teal-200 flex items-center gap-0.5"
+                >
+                  📍 Định vị
+                </button>
+              </div>
+            </div>
+
+            {/* 10. Bản đồ Quy hoạch 1/500 Cam Tân - PA2 (Đa mảnh siêu nét) */}
+            <div className="space-y-1 pt-2.5">
+              <div className="flex justify-between items-center text-xs font-semibold">
+                <span className="flex items-center gap-1 text-gray-800">
+                  📐 <span>QH 1/500 Cam Tân (PA2)</span>
+                  <span className="text-[10px] font-bold text-cyan-700 bg-cyan-50 px-1 py-0.5 rounded border border-cyan-200">Đa mảnh 14K</span>
+                </span>
+                <span className="text-cyan-600 font-bold">{Math.round(opacityCamTan1500 * 100)}%</span>
+              </div>
+              <input 
+                type="range" 
+                min="0" max="1" step="0.05"
+                value={opacityCamTan1500}
+                onChange={e => setOpacityCamTan1500(parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-cyan-600"
+              />
+              <div className="flex justify-between items-center text-[10px]">
+                <div className="flex gap-2 text-gray-500">
+                  <button type="button" onClick={() => setOpacityCamTan1500(0)} className="hover:underline">0%</button>
+                  <button type="button" onClick={() => setOpacityCamTan1500(0.5)} className="hover:underline">50%</button>
+                  <button type="button" onClick={() => setOpacityCamTan1500(1)} className="hover:underline">100%</button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (opacityCamTan1500 === 0) setOpacityCamTan1500(0.95);
+                    setActivePlanningLayer('camtan_1500');
+                    mapRef.current?.flyTo({ center: [109.1035, 12.1217], zoom: 15.2, duration: 2000 });
+                  }}
+                  className="px-2 py-0.5 bg-cyan-50 text-cyan-700 hover:bg-cyan-100 rounded text-[10px] font-medium border border-cyan-200 flex items-center gap-0.5"
                 >
                   📍 Định vị
                 </button>
