@@ -21,7 +21,7 @@ export default async function Navbar() {
       <div className="w-full px-4 sm:px-6 lg:px-8 h-full flex items-center justify-between">
         <div className="flex items-center gap-6">
           <Link href="/" className="text-xl font-extrabold text-blue-600 tracking-tight">
-            GULAND<span className="text-orange-500">.CLONE</span>
+            Quy Hoạch Khánh Hòa<span className="text-orange-500"> App</span>
           </Link>
           <Link href="/" className="text-sm font-medium hover:text-blue-600 hidden sm:block">Trang chủ Bản đồ</Link>
           {user && (

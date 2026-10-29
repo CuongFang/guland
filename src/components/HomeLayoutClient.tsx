@@ -5,7 +5,7 @@ import MapWrapper from '@/components/MapWrapper';
 import VN2000SearchModal from '@/components/VN2000SearchModal';
 
 export default function HomeLayoutClient({ properties }: { properties: any[] }) {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [priceFilter, setPriceFilter] = useState('');
   const [areaFilter, setAreaFilter] = useState('');

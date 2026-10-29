@@ -24,12 +24,37 @@ type Property = {
 };
 
 export type LayerKey = '2030' | '2045' | 'khuvuc1' | 'docduong34' | 'dc21' | 'camtan_webp';
-export type PlanningLayerType = LayerKey | 'to40' | 'khuvuc1_vector' | 'camtan_1500';
+export type PlanningLayerType = LayerKey | 'to40' | 'khuvuc1_vector' | 'camtan_1500' | 'pk32_dienkhanh';
 export type QuadCoords = [[number, number], [number, number], [number, number], [number, number]];
 
 const isCalibratableLayer = (layer: PlanningLayerType): layer is LayerKey => {
   return layer === '2030' || layer === '2045' || layer === 'khuvuc1' || layer === 'docduong34' || layer === 'dc21' || layer === 'camtan_webp';
 };
+
+const BASE_MAP_STYLE: any = {
+  version: 8,
+  glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+  sources: {
+    'satellite': {
+      type: 'raster',
+      tiles: ['https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}'],
+      tileSize: 256
+    }
+  },
+  layers: [
+    {
+      id: 'satellite-layer',
+      type: 'raster',
+      source: 'satellite',
+      minzoom: 0,
+      maxzoom: 22
+    }
+  ]
+};
+
+const OSM_TILES = ['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png'];
+const CAMTAN_TILES = ['/Map/camtan_tiles/{z}/{x}/{y}.webp'];
+const CAMTAN_BOUNDS: [number, number, number, number] = [109.09220754, 12.10606002, 109.11479040, 12.13740052];
 
 export const DEFAULT_COORDS: Record<LayerKey, QuadCoords> = {
   '2045': [
@@ -78,21 +103,21 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [streetMapOpacity, setStreetMapOpacity] = useState(0); // Độ mờ lớp Bản đồ Đường phố (OSM Map)
   
-  // 5 Lớp Bản đồ Quy hoạch & Địa chính Cam Ranh
-  const [opacity2030, setOpacity2030] = useState(0.7); // Mặc định mở Kế hoạch SDĐ 2030 (70%) để thấy ngay quy hoạch khi load trang
+  // Các Lớp Bản đồ Quy hoạch & Địa chính (Chỉ bật sẵn lớp đang chọn để tối ưu GPU 60fps mượt mà)
+  const [opacity2030, setOpacity2030] = useState(0); // Kế hoạch SDĐ 2030 (1/25.000)
   const [opacity2045, setOpacity2045] = useState(0); // QHC Cam Ranh 2045 (1/10.000)
   const [opacityKhuVuc1, setOpacityKhuVuc1] = useState(0); // Phân khu 1/2000 Khu vực 1
   const [opacityDocDuong34, setOpacityDocDuong34] = useState(0); // 1/500 Dọc đường 3/4
   const [opacityDc21, setOpacityDc21] = useState(0); // Địa chính 1/500 Tờ 21 Cam Thuận
-  const [opacityTo40, setOpacityTo40] = useState(0.85); // Địa chính Vector Tờ 40 Cam An Nam (389 thửa - GeoJSON)
-  const [opacityKhuVuc1Vector, setOpacityKhuVuc1Vector] = useState(0.8); // Quy hoạch Phân khu 1 Cam Ranh (1.472 ô - GeoJSON)
-  const [opacityCamTan1500, setOpacityCamTan1500] = useState(0.95); // Quy hoạch 1/500 Cam Tân - PA2 (Multi-tile 10K×14K)
+  const [opacityTo40, setOpacityTo40] = useState(0); // Địa chính Vector Tờ 40 Cam An Nam (389 thửa - GeoJSON)
+  const [opacityKhuVuc1Vector, setOpacityKhuVuc1Vector] = useState(0); // Quy hoạch Phân khu 1 Cam Ranh (1.472 ô - GeoJSON)
+  const [opacityCamTan1500, setOpacityCamTan1500] = useState(0); // Quy hoạch 1/500 Cam Tân - PA2 (Multi-tile 10K×14K)
   const [opacityCamTanWebp, setOpacityCamTanWebp] = useState(0); // Quy hoạch 1/500 Cam Tân - PA1 (Ảnh đơn WebP 8K)
+  const [opacityPk32, setOpacityPk32] = useState(0.85); // Quy hoạch Phân khu 3.2 Diên Khánh (638 lô - GeoJSON)
 
-  const [activePlanningLayer, setActivePlanningLayer] = useState<PlanningLayerType>('camtan_1500');
+  const [activePlanningLayer, setActivePlanningLayer] = useState<PlanningLayerType>('pk32_dienkhanh');
   const [selectedParcel, setSelectedParcel] = useState<{ lng: number; lat: number; properties: any } | null>(null);
   const [selectedPlanningZone, setSelectedPlanningZone] = useState<{ lng: number; lat: number; properties: any } | null>(null);
-  const [isHoveredParcel, setIsHoveredParcel] = useState(false);
 
   // Quản lý tọa độ các lớp quy hoạch và chế độ Căn chỉnh thủ công bằng chuột
   const [layerCoords, setLayerCoords] = useState<Record<LayerKey, QuadCoords>>(DEFAULT_COORDS);
@@ -155,6 +180,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       case 'khuvuc1_vector': return 'Quy hoạch Phân khu 1 (Vector 1.472 ô)';
       case 'camtan_1500': return 'QH 1/500 Cam Tân - PA2 (Đa mảnh 14K)';
       case 'camtan_webp': return 'QH 1/500 Cam Tân - PA1 (Ảnh ghép WebP)';
+      case 'pk32_dienkhanh': return 'Quy hoạch Phân khu 3.2 Diên Khánh (638 ô Vector)';
     }
   };
 
@@ -349,9 +375,17 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
     };
   }, [properties]);
 
+  const activeInteractiveLayers = useMemo(() => {
+    const ids: string[] = [];
+    if (opacityTo40 > 0) ids.push('cadastre-40-fill');
+    if (opacityKhuVuc1Vector > 0) ids.push('khuvuc1-vector-fill');
+    if (opacityPk32 > 0) ids.push('pk32-dienkhanh-fill');
+    return ids;
+  }, [opacityTo40, opacityKhuVuc1Vector, opacityPk32]);
+
   const defaultCenter = properties.length > 0 && properties[0].lat && properties[0].lng
     ? { longitude: properties[0].lng, latitude: properties[0].lat }
-    : { longitude: 109.135, latitude: 11.91 }; // Mặc định trung tâm TP Cam Ranh
+    : { longitude: 109.06155, latitude: 12.26125 }; // Mặc định trung tâm Phân khu 3.2 Diên Khánh
 
   if (!mounted) return <div className="h-full w-full bg-gray-100 flex items-center justify-center">Đang tải bản đồ 3D...</div>;
 
@@ -370,6 +404,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       case 'khuvuc1_vector': return opacityKhuVuc1Vector;
       case 'camtan_1500': return opacityCamTan1500;
       case 'camtan_webp': return opacityCamTanWebp;
+      case 'pk32_dienkhanh': return opacityPk32;
       default: return opacity2030;
     }
   };
@@ -385,6 +420,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       case 'khuvuc1_vector': setOpacityKhuVuc1Vector(val); break;
       case 'camtan_1500': setOpacityCamTan1500(val); break;
       case 'camtan_webp': setOpacityCamTanWebp(val); break;
+      case 'pk32_dienkhanh': setOpacityPk32(val); break;
     }
   };
 
@@ -403,6 +439,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
     setOpacityKhuVuc1Vector(layer === 'khuvuc1_vector' ? 0.8 : 0);
     setOpacityCamTan1500(layer === 'camtan_1500' ? 0.95 : 0);
     setOpacityCamTanWebp(layer === 'camtan_webp' ? 0.95 : 0);
+    setOpacityPk32(layer === 'pk32_dienkhanh' ? 0.85 : 0);
 
     // Tự động bay đến đúng tâm và đúng mức zoom tương ứng
     switch (layer) {
@@ -435,6 +472,9 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
         }
         break;
       }
+      case 'pk32_dienkhanh':
+        mapRef.current?.flyTo({ center: [109.06155, 12.26125], zoom: 14.5, duration: 1500 });
+        break;
     }
   };
 
@@ -463,6 +503,9 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       case 'camtan_webp':
         mapRef.current?.flyTo({ center: [109.1035, 12.1217], zoom: 15.2, duration: 2000 });
         break;
+      case 'pk32_dienkhanh':
+        mapRef.current?.flyTo({ center: [109.06155, 12.26125], zoom: 14.5, duration: 2000 });
+        break;
     }
   };
 
@@ -481,14 +524,17 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
         });
         return;
       }
-      // 2. Ô quy hoạch phân khu 1
-      const zone = features.find((f: any) => f.layer.id === 'khuvuc1-vector-fill');
+      // 2. Ô quy hoạch phân khu 1 Cam Ranh hoặc Phân khu 3.2 Diên Khánh
+      const zone = features.find((f: any) => f.layer.id === 'khuvuc1-vector-fill' || f.layer.id === 'pk32-dienkhanh-fill');
       if (zone) {
         setSelectedParcel(null);
         setSelectedPlanningZone({
           lng: e.lngLat.lng,
           lat: e.lngLat.lat,
-          properties: zone.properties
+          properties: {
+            ...zone.properties,
+            _sourceLayer: zone.layer.id
+          }
         });
         return;
       }
@@ -501,39 +547,22 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
         ref={mapRef}
         initialViewState={{
           ...defaultCenter,
-          zoom: 13
+          zoom: 14.2
         }}
-        mapStyle={{
-          version: 8,
-          glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
-          sources: {
-            'satellite': {
-              type: 'raster',
-              tiles: ['https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}'],
-              tileSize: 256
-            }
-          },
-          layers: [
-            {
-              id: 'satellite-layer',
-              type: 'raster',
-              source: 'satellite',
-              minzoom: 0,
-              maxzoom: 22
-            }
-          ]
-        }}
-        interactiveLayerIds={['cadastre-40-fill', 'khuvuc1-vector-fill']}
+        mapStyle={BASE_MAP_STYLE}
+        interactiveLayerIds={activeInteractiveLayers}
         onClick={handleMapClick}
-        onMouseEnter={(e: any) => {
-          if (e.features && e.features.length > 0) {
-            setIsHoveredParcel(true);
+        onMouseEnter={() => {
+          if (measureMode === 'none' && mapRef.current) {
+            mapRef.current.getCanvas().style.cursor = 'pointer';
           }
         }}
         onMouseLeave={() => {
-          setIsHoveredParcel(false);
+          if (measureMode === 'none' && mapRef.current) {
+            mapRef.current.getCanvas().style.cursor = '';
+          }
         }}
-        style={{ width: '100%', height: '100%', cursor: measureMode !== 'none' ? 'crosshair' : isHoveredParcel ? 'pointer' : 'grab' }}
+        style={{ width: '100%', height: '100%', cursor: measureMode !== 'none' ? 'crosshair' : 'grab' }}
       >
         <NavigationControl position="bottom-right" />
 
@@ -574,13 +603,14 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
         <Source 
           id="osm-streets" 
           type="raster" 
-          tiles={['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png']} 
+          tiles={OSM_TILES} 
           tileSize={256} 
           maxzoom={19}
         >
           <Layer 
             id="osm-layer" 
-            type="raster" 
+            type="raster"
+            layout={{ visibility: streetMapOpacity > 0 ? 'visible' : 'none' }}
             paint={{ 
               'raster-opacity': streetMapOpacity,
               'raster-fade-duration': 0 
@@ -597,7 +627,8 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
         >
           <Layer 
             id="planning-layer-2045" 
-            type="raster" 
+            type="raster"
+            layout={{ visibility: opacity2045 > 0 ? 'visible' : 'none' }}
             paint={{ 
               'raster-opacity': opacity2045,
               'raster-fade-duration': 0
@@ -614,7 +645,8 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
         >
           <Layer 
             id="planning-layer-2030" 
-            type="raster" 
+            type="raster"
+            layout={{ visibility: opacity2030 > 0 ? 'visible' : 'none' }}
             paint={{ 
               'raster-opacity': opacity2030,
               'raster-fade-duration': 0
@@ -631,7 +663,8 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
         >
           <Layer 
             id="planning-layer-khuvuc1" 
-            type="raster" 
+            type="raster"
+            layout={{ visibility: opacityKhuVuc1 > 0 ? 'visible' : 'none' }}
             paint={{ 
               'raster-opacity': opacityKhuVuc1,
               'raster-fade-duration': 0
@@ -648,7 +681,8 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
         >
           <Layer 
             id="planning-layer-docduong34" 
-            type="raster" 
+            type="raster"
+            layout={{ visibility: opacityDocDuong34 > 0 ? 'visible' : 'none' }}
             paint={{ 
               'raster-opacity': opacityDocDuong34,
               'raster-fade-duration': 0
@@ -665,7 +699,8 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
         >
           <Layer 
             id="planning-layer-dc21" 
-            type="raster" 
+            type="raster"
+            layout={{ visibility: opacityDc21 > 0 ? 'visible' : 'none' }}
             paint={{ 
               'raster-opacity': opacityDc21,
               'raster-fade-duration': 0
@@ -678,7 +713,8 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
           {/* Lớp Fill tô màu phân loại đất */}
           <Layer 
             id="cadastre-40-fill" 
-            type="fill" 
+            type="fill"
+            layout={{ visibility: opacityTo40 > 0 ? 'visible' : 'none' }}
             paint={{ 
               'fill-color': [
                 'match',
@@ -707,7 +743,8 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
           {/* Lớp Viền ranh thửa đất sắc nét */}
           <Layer 
             id="cadastre-40-line" 
-            type="line" 
+            type="line"
+            layout={{ visibility: opacityTo40 > 0 ? 'visible' : 'none' }}
             paint={{ 
               'line-color': '#dc2626',
               'line-width': [
@@ -724,7 +761,9 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
             id="cadastre-40-label" 
             type="symbol" 
             minzoom={16}
-            layout={{ 
+            layout={{
+              visibility: opacityTo40 > 0 ? 'visible' : 'none',
+              'text-font': ['Noto Sans Regular'],
               'text-field': [
                 'concat',
                 ['to-string', ['get', 'SHTHUA']],
@@ -754,7 +793,8 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
           {/* Lớp Fill tô màu quy hoạch chức năng đất */}
           <Layer 
             id="khuvuc1-vector-fill" 
-            type="fill" 
+            type="fill"
+            layout={{ visibility: opacityKhuVuc1Vector > 0 ? 'visible' : 'none' }}
             paint={{ 
               'fill-color': ['get', 'MauSac'], 
               'fill-opacity': opacityKhuVuc1Vector * 0.65 
@@ -763,7 +803,8 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
           {/* Lớp Viền ranh giới quy hoạch */}
           <Layer 
             id="khuvuc1-vector-line" 
-            type="line" 
+            type="line"
+            layout={{ visibility: opacityKhuVuc1Vector > 0 ? 'visible' : 'none' }}
             paint={{ 
               'line-color': '#ffffff', 
               'line-width': [
@@ -781,15 +822,16 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
         <Source
           id="planning-camtan-1500"
           type="raster"
-          tiles={['/Map/camtan_tiles/{z}/{x}/{y}.webp']}
+          tiles={CAMTAN_TILES}
           tileSize={512}
           minzoom={12}
           maxzoom={18}
-          bounds={[109.09220754, 12.10606002, 109.11479040, 12.13740052]}
+          bounds={CAMTAN_BOUNDS}
         >
           <Layer
             id="planning-layer-camtan-1500"
             type="raster"
+            layout={{ visibility: opacityCamTan1500 > 0 ? 'visible' : 'none' }}
             paint={{
               'raster-opacity': opacityCamTan1500,
               'raster-fade-duration': 0,
@@ -808,9 +850,61 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
           <Layer
             id="planning-layer-camtan-webp"
             type="raster"
+            layout={{ visibility: opacityCamTanWebp > 0 ? 'visible' : 'none' }}
             paint={{
               'raster-opacity': opacityCamTanWebp,
               'raster-fade-duration': 0
+            }}
+          />
+        </Source>
+
+        {/* 10. Lớp Bản đồ Quy hoạch Phân khu 3.2 Diên Khánh (638 ô quy hoạch - GeoJSON Vector) */}
+        <Source id="pk32-dienkhanh" type="geojson" data="/Map/phankhu32_dienkhanh.geojson">
+          <Layer
+            id="pk32-dienkhanh-fill"
+            type="fill"
+            layout={{ visibility: opacityPk32 > 0 ? 'visible' : 'none' }}
+            paint={{
+              'fill-color': ['get', 'MauSac'],
+              'fill-opacity': opacityPk32 * 0.68
+            }}
+          />
+          <Layer
+            id="pk32-dienkhanh-line"
+            type="line"
+            layout={{ visibility: opacityPk32 > 0 ? 'visible' : 'none' }}
+            paint={{
+              'line-color': '#ffffff',
+              'line-width': [
+                'interpolate', ['linear'], ['zoom'],
+                12, 0.5,
+                15, 1.2,
+                18, 2.2
+              ],
+              'line-opacity': opacityPk32 > 0 ? 0.9 : 0
+            }}
+          />
+          <Layer
+            id="pk32-dienkhanh-label"
+            type="symbol"
+            minzoom={15.5}
+            layout={{
+              visibility: opacityPk32 > 0 ? 'visible' : 'none',
+              'text-font': ['Noto Sans Regular'],
+              'text-field': ['get', 'TenQuyHoach'],
+              'text-size': [
+                'interpolate', ['linear'], ['zoom'],
+                15.5, 9,
+                18, 12
+              ],
+              'text-anchor': 'center',
+              'text-allow-overlap': false
+            }}
+            paint={{
+              'text-color': '#0f172a',
+              'text-halo-color': '#ffffff',
+              'text-halo-width': 1.5,
+              'text-opacity': opacityPk32 > 0 ? 0.9 : 0
             }}
           />
         </Source>
@@ -959,7 +1053,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
           </Popup>
         )}
 
-        {/* Popup Ô Quy hoạch Phân khu 1 GeoJSON */}
+        {/* Popup Ô Quy hoạch Vector (Phân khu 1 Cam Ranh & Phân khu 3.2 Diên Khánh) */}
         {selectedPlanningZone && (
           <Popup
             longitude={selectedPlanningZone.lng}
@@ -969,27 +1063,52 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
             onClose={() => setSelectedPlanningZone(null)}
             className="z-50"
           >
-            <div className="p-1 min-w-[240px] text-xs">
+            <div className="p-1 min-w-[250px] text-xs">
               <div className="flex items-center justify-between pb-1.5 border-b border-gray-200">
                 <span className="font-bold text-sm text-gray-900 flex items-center gap-1.5">
                   <span
-                    className="w-3.5 h-3.5 rounded-full inline-block border border-gray-300 shadow-sm"
+                    className="w-3.5 h-3.5 rounded-full inline-block border border-gray-300 shadow-sm shrink-0"
                     style={{ backgroundColor: selectedPlanningZone.properties.MauSac || '#3b82f6' }}
                   />
                   <span>{selectedPlanningZone.properties.TenQuyHoach || 'Quy hoạch xây dựng'}</span>
                 </span>
               </div>
               <div className="space-y-1.5 mt-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-500">Mã lớp CAD:</span>
-                  <span className="font-mono text-[10px] text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">
-                    {selectedPlanningZone.properties.Layer}
-                  </span>
-                </div>
+                {selectedPlanningZone.properties.DienTich !== undefined && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500">Diện tích lô:</span>
+                    <span className="font-bold text-emerald-600 text-sm">
+                      {Number(selectedPlanningZone.properties.DienTich).toLocaleString('vi-VN')} m²
+                      {Number(selectedPlanningZone.properties.DienTich) >= 10000 && (
+                        <span className="text-[11px] text-gray-500 font-normal ml-1">
+                          ({(Number(selectedPlanningZone.properties.DienTich) / 10000).toFixed(2)} ha)
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                )}
+                {selectedPlanningZone.properties.TrangThai && (
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="text-gray-500 whitespace-nowrap">Trạng thái:</span>
+                    <span className="font-semibold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 text-right">
+                      {selectedPlanningZone.properties.TrangThai}
+                    </span>
+                  </div>
+                )}
+                {selectedPlanningZone.properties.Layer && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500">Mã lớp CAD:</span>
+                    <span className="font-mono text-[10px] text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">
+                      {selectedPlanningZone.properties.Layer}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center">
                   <span className="text-gray-500">Khu vực:</span>
                   <span className="font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
-                    Phân khu 1 Cam Ranh
+                    {selectedPlanningZone.properties._sourceLayer === 'pk32-dienkhanh-fill'
+                      ? 'Phân khu 3.2 Diên Khánh'
+                      : 'Phân khu 1 Cam Ranh'}
                   </span>
                 </div>
                 {selectedPlanningZone.properties.Text && (
@@ -1001,7 +1120,11 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
                   </div>
                 )}
                 <div className="text-[10px] text-gray-400 pt-1.5 border-t border-gray-100 flex items-center justify-between">
-                  <span>📍 Ven vịnh Cam Ranh</span>
+                  <span>
+                    {selectedPlanningZone.properties._sourceLayer === 'pk32-dienkhanh-fill'
+                      ? '📍 Diên Khánh, Khánh Hòa'
+                      : '📍 Ven vịnh Cam Ranh'}
+                  </span>
                   <span>ID: #{selectedPlanningZone.properties.ID}</span>
                 </div>
               </div>
@@ -1115,14 +1238,6 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
           <div className="flex items-center justify-center gap-1.5 overflow-x-auto pb-1 max-w-full text-xs font-medium text-gray-600 scrollbar-none">
             <button
               type="button"
-              onClick={() => handleSelectPlanningTab('to40')}
-              className={`px-2.5 py-1 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'to40' ? 'bg-emerald-600 text-white font-bold shadow-sm' : 'hover:bg-gray-100'}`}
-              title="Địa chính Tờ 40 Cam An Nam (389 thửa Vector)"
-            >
-              Tờ 40 (Vector)
-            </button>
-            <button
-              type="button"
               onClick={() => handleSelectPlanningTab('khuvuc1_vector')}
               className={`px-2.5 py-1 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'khuvuc1_vector' ? 'bg-amber-600 text-white font-bold shadow-sm' : 'hover:bg-gray-100'}`}
               title="Quy hoạch Phân khu 1 Cam Ranh (1.472 ô Vector)"
@@ -1136,6 +1251,14 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
               title="Quy hoạch 1/500 Cam Tân - Cam Lâm (Đa mảnh siêu nét 14K)"
             >
               QH 1/500 Cam Tân
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSelectPlanningTab('pk32_dienkhanh')}
+              className={`px-2.5 py-1 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'pk32_dienkhanh' ? 'bg-fuchsia-600 text-white font-bold shadow-sm' : 'hover:bg-gray-100'}`}
+              title="Quy hoạch Phân khu 3.2 Diên Khánh (638 ô Vector)"
+            >
+              PK 3.2 Diên Khánh
             </button>
           </div>
 
@@ -1557,7 +1680,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       <div className={`absolute bottom-6 left-6 z-[500] bg-white rounded-xl shadow-lg border border-gray-200 text-black transition-all duration-300 overflow-hidden flex flex-col ${isLayersCollapsed ? 'w-12 h-12' : 'w-80 sm:w-96'}`}>
         {/* Nút thu gọn / mở rộng */}
         <div className={`flex items-center ${isLayersCollapsed ? 'justify-center w-full h-full' : 'justify-between px-4 py-3 border-b border-gray-100 bg-gray-50'}`}>
-          {!isLayersCollapsed && <span className="font-bold text-gray-800">Lớp Bản đồ ({[streetMapOpacity, opacity2045, opacity2030, opacityKhuVuc1, opacityDocDuong34, opacityDc21, opacityTo40, opacityKhuVuc1Vector, opacityCamTan1500, opacityCamTanWebp].filter(o => o > 0).length} đang bật)</span>}
+          {!isLayersCollapsed && <span className="font-bold text-gray-800">Lớp Bản đồ ({[streetMapOpacity, opacity2045, opacity2030, opacityKhuVuc1, opacityDocDuong34, opacityDc21, opacityTo40, opacityKhuVuc1Vector, opacityCamTan1500, opacityCamTanWebp, opacityPk32].filter(o => o > 0).length} đang bật)</span>}
           <button 
             onClick={() => setIsLayersCollapsed(!isLayersCollapsed)}
             className="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-200 rounded-full transition-colors"
@@ -1918,6 +2041,42 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
                     mapRef.current?.flyTo({ center: [109.1035, 12.1217], zoom: 15.2, duration: 2000 });
                   }}
                   className="px-2 py-0.5 bg-cyan-50 text-cyan-700 hover:bg-cyan-100 rounded text-[10px] font-medium border border-cyan-200 flex items-center gap-0.5"
+                >
+                  📍 Định vị
+                </button>
+              </div>
+            </div>
+
+            {/* 11. Bản đồ Quy hoạch Phân khu 3.2 Diên Khánh (Vector 638 ô) */}
+            <div className="space-y-1 pt-2.5">
+              <div className="flex justify-between items-center text-xs font-semibold">
+                <span className="flex items-center gap-1 text-gray-800">
+                  🏙️ <span>Phân khu 3.2 Diên Khánh</span>
+                  <span className="text-[10px] font-bold text-fuchsia-700 bg-fuchsia-50 px-1 py-0.5 rounded border border-fuchsia-200">Vector 638 ô</span>
+                </span>
+                <span className="text-fuchsia-600 font-bold">{Math.round(opacityPk32 * 100)}%</span>
+              </div>
+              <input 
+                type="range" 
+                min="0" max="1" step="0.05"
+                value={opacityPk32}
+                onChange={e => setOpacityPk32(parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-fuchsia-600"
+              />
+              <div className="flex justify-between items-center text-[10px]">
+                <div className="flex gap-2 text-gray-500">
+                  <button type="button" onClick={() => setOpacityPk32(0)} className="hover:underline">0%</button>
+                  <button type="button" onClick={() => setOpacityPk32(0.5)} className="hover:underline">50%</button>
+                  <button type="button" onClick={() => setOpacityPk32(1)} className="hover:underline">100%</button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (opacityPk32 === 0) setOpacityPk32(0.85);
+                    setActivePlanningLayer('pk32_dienkhanh');
+                    mapRef.current?.flyTo({ center: [109.06155, 12.26125], zoom: 14.5, duration: 2000 });
+                  }}
+                  className="px-2 py-0.5 bg-fuchsia-50 text-fuchsia-700 hover:bg-fuchsia-100 rounded text-[10px] font-medium border border-fuchsia-200 flex items-center gap-0.5"
                 >
                   📍 Định vị
                 </button>
