@@ -24,7 +24,7 @@ type Property = {
 };
 
 export type LayerKey = '2030' | '2045' | 'khuvuc1' | 'docduong34' | 'dc21' | 'camtan_webp';
-export type PlanningLayerType = LayerKey | 'to40' | 'khuvuc1_vector' | 'camtan_1500' | 'pk32_dienkhanh';
+export type PlanningLayerType = LayerKey | 'to40' | 'khuvuc1_vector' | 'camtan_1500' | 'pk32_dienkhanh' | 'pk3_vector';
 export type QuadCoords = [[number, number], [number, number], [number, number], [number, number]];
 
 const isCalibratableLayer = (layer: PlanningLayerType): layer is LayerKey => {
@@ -113,9 +113,10 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
   const [opacityKhuVuc1Vector, setOpacityKhuVuc1Vector] = useState(0); // Quy hoạch Phân khu 1 Cam Ranh (1.472 ô - GeoJSON)
   const [opacityCamTan1500, setOpacityCamTan1500] = useState(0); // Quy hoạch 1/500 Cam Tân - PA2 (Multi-tile 10K×14K)
   const [opacityCamTanWebp, setOpacityCamTanWebp] = useState(0); // Quy hoạch 1/500 Cam Tân - PA1 (Ảnh đơn WebP 8K)
-  const [opacityPk32, setOpacityPk32] = useState(0.85); // Quy hoạch Phân khu 3.2 Diên Khánh (638 lô - GeoJSON)
+  const [opacityPk32, setOpacityPk32] = useState(0); // Quy hoạch Phân khu 3.2 Diên Khánh (638 lô - GeoJSON)
+  const [opacityPk3, setOpacityPk3] = useState(0.85); // Quy hoạch Phân khu 3 (1.407 lô - GeoJSON)
 
-  const [activePlanningLayer, setActivePlanningLayer] = useState<PlanningLayerType>('pk32_dienkhanh');
+  const [activePlanningLayer, setActivePlanningLayer] = useState<PlanningLayerType>('pk3_vector');
   const [selectedParcel, setSelectedParcel] = useState<{ lng: number; lat: number; properties: any } | null>(null);
   const [selectedPlanningZone, setSelectedPlanningZone] = useState<{ lng: number; lat: number; properties: any } | null>(null);
 
@@ -181,6 +182,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       case 'camtan_1500': return 'QH 1/500 Cam Tân - PA2 (Đa mảnh 14K)';
       case 'camtan_webp': return 'QH 1/500 Cam Tân - PA1 (Ảnh ghép WebP)';
       case 'pk32_dienkhanh': return 'Quy hoạch Phân khu 3.2 Diên Khánh (638 ô Vector)';
+      case 'pk3_vector': return 'Quy hoạch Phân khu 3 (1.407 ô Vector)';
     }
   };
 
@@ -380,12 +382,13 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
     if (opacityTo40 > 0) ids.push('cadastre-40-fill');
     if (opacityKhuVuc1Vector > 0) ids.push('khuvuc1-vector-fill');
     if (opacityPk32 > 0) ids.push('pk32-dienkhanh-fill');
+    if (opacityPk3 > 0) ids.push('pk3-vector-fill');
     return ids;
-  }, [opacityTo40, opacityKhuVuc1Vector, opacityPk32]);
+  }, [opacityTo40, opacityKhuVuc1Vector, opacityPk32, opacityPk3]);
 
   const defaultCenter = properties.length > 0 && properties[0].lat && properties[0].lng
     ? { longitude: properties[0].lng, latitude: properties[0].lat }
-    : { longitude: 109.06155, latitude: 12.26125 }; // Mặc định trung tâm Phân khu 3.2 Diên Khánh
+    : { longitude: 109.10235, latitude: 12.15651 }; // Mặc định trung tâm Phân khu 3
 
   if (!mounted) return <div className="h-full w-full bg-gray-100 flex items-center justify-center">Đang tải bản đồ 3D...</div>;
 
@@ -405,6 +408,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       case 'camtan_1500': return opacityCamTan1500;
       case 'camtan_webp': return opacityCamTanWebp;
       case 'pk32_dienkhanh': return opacityPk32;
+      case 'pk3_vector': return opacityPk3;
       default: return opacity2030;
     }
   };
@@ -421,6 +425,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       case 'camtan_1500': setOpacityCamTan1500(val); break;
       case 'camtan_webp': setOpacityCamTanWebp(val); break;
       case 'pk32_dienkhanh': setOpacityPk32(val); break;
+      case 'pk3_vector': setOpacityPk3(val); break;
     }
   };
 
@@ -440,6 +445,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
     setOpacityCamTan1500(layer === 'camtan_1500' ? 0.95 : 0);
     setOpacityCamTanWebp(layer === 'camtan_webp' ? 0.95 : 0);
     setOpacityPk32(layer === 'pk32_dienkhanh' ? 0.85 : 0);
+    setOpacityPk3(layer === 'pk3_vector' ? 0.85 : 0);
 
     // Tự động bay đến đúng tâm và đúng mức zoom tương ứng
     switch (layer) {
@@ -475,6 +481,9 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       case 'pk32_dienkhanh':
         mapRef.current?.flyTo({ center: [109.06155, 12.26125], zoom: 14.5, duration: 1500 });
         break;
+      case 'pk3_vector':
+        mapRef.current?.flyTo({ center: [109.10235, 12.15651], zoom: 12.6, duration: 1500 });
+        break;
     }
   };
 
@@ -506,6 +515,9 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       case 'pk32_dienkhanh':
         mapRef.current?.flyTo({ center: [109.06155, 12.26125], zoom: 14.5, duration: 2000 });
         break;
+      case 'pk3_vector':
+        mapRef.current?.flyTo({ center: [109.10235, 12.15651], zoom: 12.6, duration: 2000 });
+        break;
     }
   };
 
@@ -525,7 +537,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
         return;
       }
       // 2. Ô quy hoạch phân khu 1 Cam Ranh hoặc Phân khu 3.2 Diên Khánh
-      const zone = features.find((f: any) => f.layer.id === 'khuvuc1-vector-fill' || f.layer.id === 'pk32-dienkhanh-fill');
+      const zone = features.find((f: any) => f.layer.id === 'khuvuc1-vector-fill' || f.layer.id === 'pk32-dienkhanh-fill' || f.layer.id === 'pk3-vector-fill');
       if (zone) {
         setSelectedParcel(null);
         setSelectedPlanningZone({
@@ -909,6 +921,57 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
           />
         </Source>
 
+        {/* 11. Lớp Bản đồ Quy hoạch Phân khu 3 (1.407 ô quy hoạch - GeoJSON Vector) */}
+        <Source id="pk3-vector" type="geojson" data="/Map/phankhu3_vector.geojson">
+          <Layer
+            id="pk3-vector-fill"
+            type="fill"
+            layout={{ visibility: opacityPk3 > 0 ? 'visible' : 'none' }}
+            paint={{
+              'fill-color': ['get', 'MauSac'],
+              'fill-opacity': opacityPk3 * 0.68
+            }}
+          />
+          <Layer
+            id="pk3-vector-line"
+            type="line"
+            layout={{ visibility: opacityPk3 > 0 ? 'visible' : 'none' }}
+            paint={{
+              'line-color': '#ffffff',
+              'line-width': [
+                'interpolate', ['linear'], ['zoom'],
+                11, 0.4,
+                15, 1.1,
+                18, 2.0
+              ],
+              'line-opacity': opacityPk3 > 0 ? 0.88 : 0
+            }}
+          />
+          <Layer
+            id="pk3-vector-label"
+            type="symbol"
+            minzoom={15}
+            layout={{
+              visibility: opacityPk3 > 0 ? 'visible' : 'none',
+              'text-font': ['Noto Sans Regular'],
+              'text-field': ['get', 'TenQuyHoach'],
+              'text-size': [
+                'interpolate', ['linear'], ['zoom'],
+                15, 9,
+                18, 12
+              ],
+              'text-anchor': 'center',
+              'text-allow-overlap': false
+            }}
+            paint={{
+              'text-color': '#0f172a',
+              'text-halo-color': '#ffffff',
+              'text-halo-width': 1.5,
+              'text-opacity': opacityPk3 > 0 ? 0.9 : 0
+            }}
+          />
+        </Source>
+
         {/* Heatmap Layer */}
         {showHeatmap && (
           <Source id="properties-heatmap" type="geojson" data={geojson as any}>
@@ -1095,11 +1158,23 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
                     </span>
                   </div>
                 )}
-                {selectedPlanningZone.properties.Layer && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-500">Mã lớp CAD:</span>
-                    <span className="font-mono text-[10px] text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">
-                      {selectedPlanningZone.properties.Layer}
+                {(selectedPlanningZone.properties.PhanLoai || selectedPlanningZone.properties.Layer) && (
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="text-gray-500 whitespace-nowrap">Mã đất (Phanloai):</span>
+                    <span className="font-mono text-[10px] text-gray-800 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200 font-semibold">
+                      {selectedPlanningZone.properties.PhanLoai || selectedPlanningZone.properties.Layer}
+                    </span>
+                  </div>
+                )}
+                {selectedPlanningZone.properties.MauSac && (
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="text-gray-500 whitespace-nowrap">Mã màu (maHTML):</span>
+                    <span className="font-mono text-[10px] text-gray-700 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200 flex items-center gap-1">
+                      <span
+                        className="w-2.5 h-2.5 rounded-sm inline-block border border-gray-300"
+                        style={{ backgroundColor: selectedPlanningZone.properties.MauSac }}
+                      />
+                      <span>{selectedPlanningZone.properties.MauSac}</span>
                     </span>
                   </div>
                 )}
@@ -1108,7 +1183,9 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
                   <span className="font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
                     {selectedPlanningZone.properties._sourceLayer === 'pk32-dienkhanh-fill'
                       ? 'Phân khu 3.2 Diên Khánh'
-                      : 'Phân khu 1 Cam Ranh'}
+                      : selectedPlanningZone.properties._sourceLayer === 'pk3-vector-fill'
+                        ? 'Phân khu 3 (Diên Khánh - Cam Lâm)'
+                        : 'Phân khu 1 Cam Ranh'}
                   </span>
                 </div>
                 {selectedPlanningZone.properties.Text && (
@@ -1123,7 +1200,9 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
                   <span>
                     {selectedPlanningZone.properties._sourceLayer === 'pk32-dienkhanh-fill'
                       ? '📍 Diên Khánh, Khánh Hòa'
-                      : '📍 Ven vịnh Cam Ranh'}
+                      : selectedPlanningZone.properties._sourceLayer === 'pk3-vector-fill'
+                        ? '📍 Diên Khánh – Cam Lâm'
+                        : '📍 Ven vịnh Cam Ranh'}
                   </span>
                   <span>ID: #{selectedPlanningZone.properties.ID}</span>
                 </div>
@@ -1238,14 +1317,6 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
           <div className="flex items-center justify-center gap-1.5 overflow-x-auto pb-1 max-w-full text-xs font-medium text-gray-600 scrollbar-none">
             <button
               type="button"
-              onClick={() => handleSelectPlanningTab('khuvuc1_vector')}
-              className={`px-2.5 py-1 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'khuvuc1_vector' ? 'bg-amber-600 text-white font-bold shadow-sm' : 'hover:bg-gray-100'}`}
-              title="Quy hoạch Phân khu 1 Cam Ranh (1.472 ô Vector)"
-            >
-              Phân khu 1 (Vector)
-            </button>
-            <button
-              type="button"
               onClick={() => handleSelectPlanningTab('camtan_1500')}
               className={`px-2.5 py-1 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'camtan_1500' ? 'bg-cyan-600 text-white font-bold shadow-sm' : 'hover:bg-gray-100'}`}
               title="Quy hoạch 1/500 Cam Tân - Cam Lâm (Đa mảnh siêu nét 14K)"
@@ -1259,6 +1330,14 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
               title="Quy hoạch Phân khu 3.2 Diên Khánh (638 ô Vector)"
             >
               PK 3.2 Diên Khánh
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSelectPlanningTab('pk3_vector')}
+              className={`px-2.5 py-1 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'pk3_vector' ? 'bg-violet-600 text-white font-bold shadow-sm' : 'hover:bg-gray-100'}`}
+              title="Quy hoạch Phân khu 3 (1.407 ô Vector)"
+            >
+              Phân khu 3 (Vector)
             </button>
           </div>
 
@@ -1680,7 +1759,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       <div className={`absolute bottom-6 left-6 z-[500] bg-white rounded-xl shadow-lg border border-gray-200 text-black transition-all duration-300 overflow-hidden flex flex-col ${isLayersCollapsed ? 'w-12 h-12' : 'w-80 sm:w-96'}`}>
         {/* Nút thu gọn / mở rộng */}
         <div className={`flex items-center ${isLayersCollapsed ? 'justify-center w-full h-full' : 'justify-between px-4 py-3 border-b border-gray-100 bg-gray-50'}`}>
-          {!isLayersCollapsed && <span className="font-bold text-gray-800">Lớp Bản đồ ({[streetMapOpacity, opacity2045, opacity2030, opacityKhuVuc1, opacityDocDuong34, opacityDc21, opacityTo40, opacityKhuVuc1Vector, opacityCamTan1500, opacityCamTanWebp, opacityPk32].filter(o => o > 0).length} đang bật)</span>}
+          {!isLayersCollapsed && <span className="font-bold text-gray-800">Lớp Bản đồ ({[streetMapOpacity, opacity2045, opacity2030, opacityKhuVuc1, opacityDocDuong34, opacityDc21, opacityTo40, opacityKhuVuc1Vector, opacityCamTan1500, opacityCamTanWebp, opacityPk32, opacityPk3].filter(o => o > 0).length} đang bật)</span>}
           <button 
             onClick={() => setIsLayersCollapsed(!isLayersCollapsed)}
             className="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-200 rounded-full transition-colors"
@@ -2077,6 +2156,42 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
                     mapRef.current?.flyTo({ center: [109.06155, 12.26125], zoom: 14.5, duration: 2000 });
                   }}
                   className="px-2 py-0.5 bg-fuchsia-50 text-fuchsia-700 hover:bg-fuchsia-100 rounded text-[10px] font-medium border border-fuchsia-200 flex items-center gap-0.5"
+                >
+                  📍 Định vị
+                </button>
+              </div>
+            </div>
+
+            {/* 12. Bản đồ Quy hoạch Phân khu 3 (Vector 1.407 ô) */}
+            <div className="space-y-1 pt-2.5">
+              <div className="flex justify-between items-center text-xs font-semibold">
+                <span className="flex items-center gap-1 text-gray-800">
+                  🏞️ <span>Quy hoạch Phân khu 3</span>
+                  <span className="text-[10px] font-bold text-violet-700 bg-violet-50 px-1 py-0.5 rounded border border-violet-200">Vector 1.407 ô</span>
+                </span>
+                <span className="text-violet-600 font-bold">{Math.round(opacityPk3 * 100)}%</span>
+              </div>
+              <input 
+                type="range" 
+                min="0" max="1" step="0.05"
+                value={opacityPk3}
+                onChange={e => setOpacityPk3(parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-violet-600"
+              />
+              <div className="flex justify-between items-center text-[10px]">
+                <div className="flex gap-2 text-gray-500">
+                  <button type="button" onClick={() => setOpacityPk3(0)} className="hover:underline">0%</button>
+                  <button type="button" onClick={() => setOpacityPk3(0.5)} className="hover:underline">50%</button>
+                  <button type="button" onClick={() => setOpacityPk3(1)} className="hover:underline">100%</button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (opacityPk3 === 0) setOpacityPk3(0.85);
+                    setActivePlanningLayer('pk3_vector');
+                    mapRef.current?.flyTo({ center: [109.10235, 12.15651], zoom: 12.6, duration: 2000 });
+                  }}
+                  className="px-2 py-0.5 bg-violet-50 text-violet-700 hover:bg-violet-100 rounded text-[10px] font-medium border border-violet-200 flex items-center gap-0.5"
                 >
                   📍 Định vị
                 </button>
