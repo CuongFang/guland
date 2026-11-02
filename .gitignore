@@ -40,5 +40,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# raw large GIS source files (>100MB)
+# raw large GIS source files (>50MB)
 public/Map/*.kmz
+public/Map/TD_22330.shp.geojson

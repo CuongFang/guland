@@ -24,7 +24,55 @@ type Property = {
 };
 
 export type LayerKey = '2030' | '2045' | 'khuvuc1' | 'docduong34' | 'dc21' | 'camtan_webp';
-export type PlanningLayerType = LayerKey | 'to40' | 'khuvuc1_vector' | 'camtan_1500' | 'pk32_dienkhanh' | 'pk3_vector';
+export type PlanningLayerType = LayerKey | 'to40' | 'khuvuc1_vector' | 'camtan_1500' | 'pk32_dienkhanh' | 'pk3_vector' | 'camhaitay_sdd' | 'camhaitay_gt' | 'td_22330';
+
+const LOAI_DAT_NAMES: Record<string, string> = {
+  'ODT': 'Đất ở tại đô thị',
+  'ODT+LNC': 'Đất ở đô thị + Cây lâu năm',
+  'ODT+BHK': 'Đất ở đô thị + Cây hàng năm',
+  'ODT+CLN': 'Đất ở đô thị + Cây lâu năm',
+  'ONT': 'Đất ở tại nông thôn',
+  'ONT+LNQ': 'Đất ở nông thôn + Cây ăn quả',
+  'ONT+LNK': 'Đất ở nông thôn + Cây lâu năm khác',
+  'ONT+CLN': 'Đất ở nông thôn + Cây lâu năm',
+  'ONT+BHK': 'Đất ở nông thôn + Cây hàng năm',
+  'ONT+LUK': 'Đất ở nông thôn + Lúa nước',
+  'ONT+LUC': 'Đất ở nông thôn + Lúa nước',
+  'ONT+ONT': 'Đất ở tại nông thôn',
+  'CLN': 'Đất trồng cây lâu năm',
+  'LNK': 'Đất trồng cây lâu năm khác',
+  'LNQ+BHK': 'Đất cây ăn quả + Cây hàng năm',
+  'BHK': 'Đất bằng trồng cây hàng năm khác',
+  'HNK': 'Đất trồng cây hàng năm khác',
+  'NHK': 'Đất nương rẫy trồng cây hàng năm',
+  'NKH': 'Đất nông nghiệp khác',
+  'LUC': 'Đất chuyên trồng lúa nước',
+  'LUK': 'Đất trồng lúa nước còn lại',
+  'RST': 'Đất rừng sản xuất (Rừng trồng)',
+  'RSX': 'Đất rừng sản xuất',
+  'RSM': 'Đất rừng sản xuất',
+  'NTS': 'Đất nuôi trồng thủy sản',
+  'TSL': 'Đất nuôi trồng thủy sản nước lợ/mặn',
+  'LMU': 'Đất làm muối',
+  'DGT': 'Đất giao thông',
+  'DTL': 'Đất thủy lợi',
+  'SON': 'Đất sông, ngòi, kênh, rạch, suối',
+  'MNC': 'Đất có mặt nước chuyên dùng',
+  'BCS': 'Đất bằng chưa sử dụng',
+  'CSD': 'Đất chưa sử dụng',
+  'NTD': 'Đất nghĩa trang, nghĩa địa',
+  'TSC': 'Đất trụ sở cơ quan',
+  'CQP': 'Đất quốc phòng',
+  'SKC': 'Đất cơ sở sản xuất phi nông nghiệp',
+  'SKK': 'Đất khu công nghiệp',
+  'DGD': 'Đất cơ sở giáo dục - đào tạo',
+  'DCH': 'Đất chợ',
+  'TON': 'Đất cơ sở tôn giáo',
+  'TIN': 'Đất cơ sở tín ngưỡng',
+  'DCS': 'Đất có di tích lịch sử - văn hóa',
+  'DKV': 'Đất khu vui chơi, giải trí công cộng',
+  'DNL': 'Đất công trình năng lượng',
+};
 export type QuadCoords = [[number, number], [number, number], [number, number], [number, number]];
 
 const isCalibratableLayer = (layer: PlanningLayerType): layer is LayerKey => {
@@ -114,9 +162,12 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
   const [opacityCamTan1500, setOpacityCamTan1500] = useState(0); // Quy hoạch 1/500 Cam Tân - PA2 (Multi-tile 10K×14K)
   const [opacityCamTanWebp, setOpacityCamTanWebp] = useState(0); // Quy hoạch 1/500 Cam Tân - PA1 (Ảnh đơn WebP 8K)
   const [opacityPk32, setOpacityPk32] = useState(0); // Quy hoạch Phân khu 3.2 Diên Khánh (638 lô - GeoJSON)
-  const [opacityPk3, setOpacityPk3] = useState(0.85); // Quy hoạch Phân khu 3 (1.407 lô - GeoJSON)
+  const [opacityPk3, setOpacityPk3] = useState(0); // Quy hoạch Phân khu 3 (1.407 lô - GeoJSON)
+  const [opacityTd22330, setOpacityTd22330] = useState(0.85); // Lớp dưới cùng: Địa chính Cam Hải Tây - TD 22330 (83.509 thửa)
+  const [opacityCamHaiTaySdd, setOpacityCamHaiTaySdd] = useState(0.6); // Lớp giữa: QH 1/500 Cam Hải Tây - Sử dụng đất (282 ô)
+  const [opacityCamHaiTayGt, setOpacityCamHaiTayGt] = useState(0.9); // Lớp trên cùng: QH 1/500 Cam Hải Tây - Giao thông (3.929 đoạn)
 
-  const [activePlanningLayer, setActivePlanningLayer] = useState<PlanningLayerType>('pk3_vector');
+  const [activePlanningLayer, setActivePlanningLayer] = useState<PlanningLayerType>('camhaitay_sdd');
   const [selectedParcel, setSelectedParcel] = useState<{ lng: number; lat: number; properties: any } | null>(null);
   const [selectedPlanningZone, setSelectedPlanningZone] = useState<{ lng: number; lat: number; properties: any } | null>(null);
 
@@ -183,6 +234,9 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       case 'camtan_webp': return 'QH 1/500 Cam Tân - PA1 (Ảnh ghép WebP)';
       case 'pk32_dienkhanh': return 'Quy hoạch Phân khu 3.2 Diên Khánh (638 ô Vector)';
       case 'pk3_vector': return 'Quy hoạch Phân khu 3 (1.407 ô Vector)';
+      case 'camhaitay_sdd': return 'QH 1/500 Cam Hải Tây - Sử dụng đất (282 ô)';
+      case 'camhaitay_gt': return 'QH 1/500 Cam Hải Tây - Mạng lưới Giao thông';
+      case 'td_22330': return 'Địa chính Cam Hải Tây - TD 22330 (83.509 thửa)';
     }
   };
 
@@ -383,12 +437,14 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
     if (opacityKhuVuc1Vector > 0) ids.push('khuvuc1-vector-fill');
     if (opacityPk32 > 0) ids.push('pk32-dienkhanh-fill');
     if (opacityPk3 > 0) ids.push('pk3-vector-fill');
+    if (opacityCamHaiTaySdd > 0) ids.push('camhaitay-1500-fill');
+    if (opacityTd22330 > 0) ids.push('cadastre-td22330-fill');
     return ids;
-  }, [opacityTo40, opacityKhuVuc1Vector, opacityPk32, opacityPk3]);
+  }, [opacityTo40, opacityKhuVuc1Vector, opacityPk32, opacityPk3, opacityCamHaiTaySdd, opacityTd22330]);
 
   const defaultCenter = properties.length > 0 && properties[0].lat && properties[0].lng
     ? { longitude: properties[0].lng, latitude: properties[0].lat }
-    : { longitude: 109.10235, latitude: 12.15651 }; // Mặc định trung tâm Phân khu 3
+    : { longitude: 109.14082, latitude: 12.10621 }; // Mặc định trung tâm QH 1/500 Cam Hải Tây
 
   if (!mounted) return <div className="h-full w-full bg-gray-100 flex items-center justify-center">Đang tải bản đồ 3D...</div>;
 
@@ -409,6 +465,9 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       case 'camtan_webp': return opacityCamTanWebp;
       case 'pk32_dienkhanh': return opacityPk32;
       case 'pk3_vector': return opacityPk3;
+      case 'camhaitay_sdd': return opacityCamHaiTaySdd;
+      case 'camhaitay_gt': return opacityCamHaiTayGt;
+      case 'td_22330': return opacityTd22330;
       default: return opacity2030;
     }
   };
@@ -426,26 +485,34 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       case 'camtan_webp': setOpacityCamTanWebp(val); break;
       case 'pk32_dienkhanh': setOpacityPk32(val); break;
       case 'pk3_vector': setOpacityPk3(val); break;
+      case 'camhaitay_sdd': setOpacityCamHaiTaySdd(val); break;
+      case 'camhaitay_gt': setOpacityCamHaiTayGt(val); break;
+      case 'td_22330': setOpacityTd22330(val); break;
     }
   };
 
-  // Hàm chuyển tab trên thanh so sánh ngang: tự động bật độ mờ rõ ràng và bay mượt đến vị trí tương ứng
+  // Hàm chuyển tab trên thanh so sánh ngang:
+  // Giữ nguyên độ mờ (opacity) của các tấm bản đồ đang bật để có thể chồng mờ nhiều tấm lên nhau và kéo riêng từng tấm!
   const handleSelectPlanningTab = (layer: PlanningLayerType) => {
     setActivePlanningLayer(layer);
-    
-    // Tự động bật độ mờ cho lớp đang chọn và tắt các lớp khác để tập trung so sánh rõ ràng
-    const targetOpacity = 0.75;
-    setOpacity2045(layer === '2045' ? targetOpacity : 0);
-    setOpacity2030(layer === '2030' ? targetOpacity : 0);
-    setOpacityKhuVuc1(layer === 'khuvuc1' ? targetOpacity : 0);
-    setOpacityDocDuong34(layer === 'docduong34' ? targetOpacity : 0);
-    setOpacityDc21(layer === 'dc21' ? targetOpacity : 0);
-    setOpacityTo40(layer === 'to40' ? 0.85 : 0);
-    setOpacityKhuVuc1Vector(layer === 'khuvuc1_vector' ? 0.8 : 0);
-    setOpacityCamTan1500(layer === 'camtan_1500' ? 0.95 : 0);
-    setOpacityCamTanWebp(layer === 'camtan_webp' ? 0.95 : 0);
-    setOpacityPk32(layer === 'pk32_dienkhanh' ? 0.85 : 0);
-    setOpacityPk3(layer === 'pk3_vector' ? 0.85 : 0);
+
+    // Nếu tấm bản đồ được chọn đang tắt (0%), bật nhẹ lên (75%) để người dùng kéo chỉnh độ mờ chồng lớp ngay
+    switch (layer) {
+      case '2045': if (opacity2045 === 0) setOpacity2045(0.75); break;
+      case '2030': if (opacity2030 === 0) setOpacity2030(0.75); break;
+      case 'khuvuc1': if (opacityKhuVuc1 === 0) setOpacityKhuVuc1(0.75); break;
+      case 'docduong34': if (opacityDocDuong34 === 0) setOpacityDocDuong34(0.75); break;
+      case 'dc21': if (opacityDc21 === 0) setOpacityDc21(0.75); break;
+      case 'to40': if (opacityTo40 === 0) setOpacityTo40(0.85); break;
+      case 'khuvuc1_vector': if (opacityKhuVuc1Vector === 0) setOpacityKhuVuc1Vector(0.8); break;
+      case 'camtan_1500': if (opacityCamTan1500 === 0) setOpacityCamTan1500(0.85); break;
+      case 'camtan_webp': if (opacityCamTanWebp === 0) setOpacityCamTanWebp(0.85); break;
+      case 'pk32_dienkhanh': if (opacityPk32 === 0) setOpacityPk32(0.85); break;
+      case 'pk3_vector': if (opacityPk3 === 0) setOpacityPk3(0.85); break;
+      case 'camhaitay_sdd': if (opacityCamHaiTaySdd === 0) setOpacityCamHaiTaySdd(0.75); break;
+      case 'camhaitay_gt': if (opacityCamHaiTayGt === 0) setOpacityCamHaiTayGt(0.9); break;
+      case 'td_22330': if (opacityTd22330 === 0) setOpacityTd22330(0.65); break;
+    }
 
     // Tự động bay đến đúng tâm và đúng mức zoom tương ứng
     switch (layer) {
@@ -484,6 +551,16 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       case 'pk3_vector':
         mapRef.current?.flyTo({ center: [109.10235, 12.15651], zoom: 12.6, duration: 1500 });
         break;
+      case 'camhaitay_sdd':
+      case 'camhaitay_gt':
+      case 'td_22330': {
+        const center = mapRef.current?.getCenter();
+        const inCamHaiTay = center && center.lat > 12.04 && center.lat < 12.16 && center.lng > 109.08 && center.lng < 109.20;
+        if (!inCamHaiTay) {
+          mapRef.current?.flyTo({ center: [109.14082, 12.10621], zoom: layer === 'td_22330' ? 16.0 : 15.4, duration: 1500 });
+        }
+        break;
+      }
     }
   };
 
@@ -518,6 +595,13 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       case 'pk3_vector':
         mapRef.current?.flyTo({ center: [109.10235, 12.15651], zoom: 12.6, duration: 2000 });
         break;
+      case 'camhaitay_sdd':
+      case 'camhaitay_gt':
+        mapRef.current?.flyTo({ center: [109.14082, 12.10621], zoom: 15.4, duration: 2000 });
+        break;
+      case 'td_22330':
+        mapRef.current?.flyTo({ center: [109.14082, 12.10621], zoom: 16.0, duration: 2000 });
+        break;
     }
   };
 
@@ -525,19 +609,24 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
     if (measureMode !== 'none') return;
     const features = e.features;
     if (features && features.length > 0) {
-      // 1. Thửa đất địa chính Tờ 40
-      const parcel = features.find((f: any) => f.layer.id === 'cadastre-40-fill');
+      // 1. Thửa đất địa chính (Tờ 40 Cam An Nam hoặc Địa chính Cam Hải Tây TD_22330)
+      const parcel = features.find((f: any) => f.layer.id === 'cadastre-40-fill' || f.layer.id === 'cadastre-td22330-fill');
+      const overlappingZone = features.find((f: any) => f.layer.id === 'camhaitay-1500-fill' || f.layer.id === 'khuvuc1-vector-fill' || f.layer.id === 'pk32-dienkhanh-fill' || f.layer.id === 'pk3-vector-fill');
       if (parcel) {
         setSelectedPlanningZone(null);
         setSelectedParcel({
           lng: e.lngLat.lng,
           lat: e.lngLat.lat,
-          properties: parcel.properties
+          properties: {
+            ...parcel.properties,
+            _sourceLayer: parcel.layer.id,
+            _planningZone: overlappingZone ? overlappingZone.properties : null
+          }
         });
         return;
       }
       // 2. Ô quy hoạch phân khu 1 Cam Ranh hoặc Phân khu 3.2 Diên Khánh
-      const zone = features.find((f: any) => f.layer.id === 'khuvuc1-vector-fill' || f.layer.id === 'pk32-dienkhanh-fill' || f.layer.id === 'pk3-vector-fill');
+      const zone = features.find((f: any) => f.layer.id === 'khuvuc1-vector-fill' || f.layer.id === 'pk32-dienkhanh-fill' || f.layer.id === 'pk3-vector-fill' || f.layer.id === 'camhaitay-1500-fill');
       if (zone) {
         setSelectedParcel(null);
         setSelectedPlanningZone({
@@ -559,7 +648,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
         ref={mapRef}
         initialViewState={{
           ...defaultCenter,
-          zoom: 14.2
+          zoom: 15.6
         }}
         mapStyle={BASE_MAP_STYLE}
         interactiveLayerIds={activeInteractiveLayers}
@@ -878,7 +967,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
             layout={{ visibility: opacityPk32 > 0 ? 'visible' : 'none' }}
             paint={{
               'fill-color': ['get', 'MauSac'],
-              'fill-opacity': opacityPk32 * 0.68
+              'fill-opacity': opacityPk32 * 0.88
             }}
           />
           <Layer
@@ -929,7 +1018,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
             layout={{ visibility: opacityPk3 > 0 ? 'visible' : 'none' }}
             paint={{
               'fill-color': ['get', 'MauSac'],
-              'fill-opacity': opacityPk3 * 0.68
+              'fill-opacity': opacityPk3 * 0.88
             }}
           />
           <Layer
@@ -968,6 +1057,221 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
               'text-halo-color': '#ffffff',
               'text-halo-width': 1.5,
               'text-opacity': opacityPk3 > 0 ? 0.9 : 0
+            }}
+          />
+        </Source>
+
+        {/* 12A. Lớp Bản đồ Địa chính Cam Hải Tây - TD 22330 (83.509 thửa đất - GeoJSON Vector) */}
+        <Source
+          id="cadastre-td22330"
+          type="geojson"
+          data="/Map/td_22330_camhaitay.geojson"
+          maxzoom={18}
+          tolerance={0.35}
+        >
+          {/* Lớp Fill tô màu đậm theo loại đất KHLOAIDAT */}
+          <Layer
+            id="cadastre-td22330-fill"
+            type="fill"
+            minzoom={12}
+            layout={{ visibility: opacityTd22330 > 0 ? 'visible' : 'none' }}
+            paint={{
+              'fill-color': [
+                'match',
+                ['get', 'ld'],
+                'ODT', '#dc2626',
+                'ODT+LNC', '#ef4444',
+                'ODT+BHK', '#f97316',
+                'ODT+CLN', '#f97316',
+                'ONT', '#e11d48',
+                'ONT+ONT', '#e11d48',
+                'ONT+LNQ', '#f43f5e',
+                'ONT+LNK', '#fb7185',
+                'ONT+CLN', '#fb7185',
+                'ONT+BHK', '#f472b6',
+                'ONT+LUK', '#f472b6',
+                'ONT+LUC', '#f472b6',
+                'CLN', '#d97706',
+                'LNK', '#f59e0b',
+                'LNQ+BHK', '#f59e0b',
+                'BHK', '#ca8a04',
+                'HNK', '#eab308',
+                'NHK', '#eab308',
+                'NKH', '#eab308',
+                'LUC', '#65a30d',
+                'LUK', '#84cc16',
+                'RST', '#15803d',
+                'RSX', '#16a34a',
+                'RSM', '#15803d',
+                'NTS', '#0284c7',
+                'TSL', '#0369a1',
+                'LMU', '#38bdf8',
+                'DGT', '#facc15',
+                'DTL', '#0284c7',
+                'SON', '#0369a1',
+                'MNC', '#0284c7',
+                'BCS', '#94a3b8',
+                'CSD', '#94a3b8',
+                'NTD', '#64748b',
+                'TSC', '#9333ea',
+                'CQP', '#7e22ce',
+                'SKC', '#7c3aed',
+                'SKK', '#6d28d9',
+                'DGD', '#a855f7',
+                'DCH', '#c026d3',
+                'TON', '#b91c1c',
+                'TIN', '#b91c1c',
+                'DCS', '#b91c1c',
+                'DKV', '#10b981',
+                'DNL', '#6366f1',
+                '#cbd5e1'
+              ],
+              'fill-opacity': opacityTd22330 * 0.82
+            }}
+          />
+          {/* Lớp Viền ranh giới thửa đất sắc nét */}
+          <Layer
+            id="cadastre-td22330-line"
+            type="line"
+            minzoom={13.5}
+            layout={{ visibility: opacityTd22330 > 0 ? 'visible' : 'none' }}
+            paint={{
+              'line-color': '#ffffff',
+              'line-width': [
+                'interpolate', ['linear'], ['zoom'],
+                13.5, 0.45,
+                15.5, 1.0,
+                17.5, 1.7,
+                20, 2.5
+              ],
+              'line-opacity': opacityTd22330
+            }}
+          />
+          {/* Lớp Nhãn Số thửa + Loại đất khi phóng to */}
+          <Layer
+            id="cadastre-td22330-label"
+            type="symbol"
+            minzoom={16.2}
+            layout={{
+              visibility: opacityTd22330 > 0 ? 'visible' : 'none',
+              'text-font': ['Noto Sans Regular'],
+              'text-field': [
+                'concat',
+                ['to-string', ['get', 'th']],
+                '\n',
+                ['get', 'ld']
+              ],
+              'text-size': [
+                'interpolate', ['linear'], ['zoom'],
+                16.2, 9,
+                18, 11.5,
+                20, 13.5
+              ],
+              'text-anchor': 'center',
+              'text-allow-overlap': false
+            }}
+            paint={{
+              'text-color': '#0f172a',
+              'text-halo-color': '#ffffff',
+              'text-halo-width': 1.6,
+              'text-opacity': opacityTd22330
+            }}
+          />
+        </Source>
+
+        {/* 12. Lớp Bản đồ Quy hoạch Sử dụng đất 1/500 Cam Hải Tây (282 ô quy hoạch - GeoJSON Vector) */}
+        <Source id="camhaitay-1500-sdd" type="geojson" data="/Map/camhaitay_1500_sdd.geojson">
+          <Layer
+            id="camhaitay-1500-fill"
+            type="fill"
+            layout={{ visibility: opacityCamHaiTaySdd > 0 ? 'visible' : 'none' }}
+            paint={{
+              'fill-color': ['get', 'MauSac'],
+              'fill-opacity': opacityCamHaiTaySdd * 0.88
+            }}
+          />
+          <Layer
+            id="camhaitay-1500-line"
+            type="line"
+            layout={{ visibility: opacityCamHaiTaySdd > 0 ? 'visible' : 'none' }}
+            paint={{
+              'line-color': '#fef08a',
+              'line-width': [
+                'interpolate', ['linear'], ['zoom'],
+                13, 0.8,
+                16, 1.8,
+                19, 2.8
+              ],
+              'line-opacity': opacityCamHaiTaySdd
+            }}
+          />
+          <Layer
+            id="camhaitay-1500-label"
+            type="symbol"
+            minzoom={15.2}
+            layout={{
+              visibility: opacityCamHaiTaySdd > 0 ? 'visible' : 'none',
+              'text-font': ['Noto Sans Regular'],
+              'text-field': [
+                'concat',
+                ['get', 'KyHieuLo'],
+                '\n',
+                ['get', 'TenQuyHoach']
+              ],
+              'text-size': [
+                'interpolate', ['linear'], ['zoom'],
+                15.2, 9.5,
+                18, 12.5
+              ],
+              'text-anchor': 'center',
+              'text-allow-overlap': false
+            }}
+            paint={{
+              'text-color': '#0f172a',
+              'text-halo-color': '#ffffff',
+              'text-halo-width': 1.8,
+              'text-opacity': opacityCamHaiTaySdd
+            }}
+          />
+        </Source>
+
+        {/* 13. Lớp Bản đồ Mạng lưới Giao thông đường bộ 1/500 Cam Hải Tây (3.929 đoạn tuyến - GeoJSON Vector) */}
+        <Source id="camhaitay-1500-gt" type="geojson" data="/Map/camhaitay_1500_gt.geojson">
+          <Layer
+            id="camhaitay-1500-gt-line"
+            type="line"
+            layout={{ visibility: opacityCamHaiTayGt > 0 ? 'visible' : 'none' }}
+            paint={{
+              'line-color': [
+                'match',
+                ['get', 'phanLoai'],
+                'HTKT_GT_Timduong', '#ff1e1e',
+                'HTKT_GT_Longduong', '#ffd000',
+                'HTKT_GT_Heduong', '#00f5d4',
+                'HTKT_GT_DuongHem1', '#38bdf8',
+                '#ffffff'
+              ],
+              'line-width': [
+                'interpolate', ['linear'], ['zoom'],
+                13, 1.0,
+                16, [
+                  'match',
+                  ['get', 'phanLoai'],
+                  'HTKT_GT_Longduong', 2.4,
+                  'HTKT_GT_Heduong', 1.8,
+                  'HTKT_GT_Timduong', 1.6,
+                  1.6
+                ],
+                19, [
+                  'match',
+                  ['get', 'phanLoai'],
+                  'HTKT_GT_Longduong', 4.0,
+                  'HTKT_GT_Heduong', 2.8,
+                  'HTKT_GT_Timduong', 2.5,
+                  2.5
+                ]
+              ],
+              'line-opacity': opacityCamHaiTayGt
             }}
           />
         </Source>
@@ -1060,61 +1364,113 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
         )}
 
         {/* Popup Thông tin Thửa đất GeoJSON */}
-        {selectedParcel && (
-          <Popup
-            longitude={selectedParcel.lng}
-            latitude={selectedParcel.lat}
-            anchor="bottom"
-            offset={15}
-            onClose={() => setSelectedParcel(null)}
-            className="z-50"
-          >
-            <div className="p-1 min-w-[220px] text-xs">
-              <div className="flex items-center justify-between pb-1.5 border-b border-gray-200">
-                <span className="font-bold text-red-600 text-sm">
-                  Thửa #{selectedParcel.properties.SHTHUA}
-                </span>
-                <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold text-[10px]">
-                  Tờ #{selectedParcel.properties.SHBANDO || '40'}
-                </span>
-              </div>
-              <div className="space-y-1.5 mt-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-500">Diện tích:</span>
-                  <span className="font-bold text-emerald-600 text-sm">
-                    {Number(selectedParcel.properties.DIENTICH || 0).toLocaleString('vi-VN')} m²
+        {selectedParcel && (() => {
+          const p = selectedParcel.properties;
+          const isTd22330 = p._sourceLayer === 'cadastre-td22330-fill';
+          const soThua = isTd22330 ? p.th : p.SHTHUA;
+          const soTo = isTd22330 ? p.t : (p.SHBANDO || '40');
+          const dienTich = isTd22330 ? p.dt : p.DIENTICH;
+          const maLoaiDat = (isTd22330 ? p.ld : (p.KHLOAIDAT || p.MDSD2003)) || 'Chưa xác định';
+          const tenLoaiDat = LOAI_DAT_NAMES[maLoaiDat] || '';
+          const tenChu = isTd22330 ? p.tc : p.DIADANH;
+          const daCapGcn = isTd22330 ? p.gcn === 1 : p.DaCapGCN === 1;
+          return (
+            <Popup
+              longitude={selectedParcel.lng}
+              latitude={selectedParcel.lat}
+              anchor="bottom"
+              offset={15}
+              onClose={() => setSelectedParcel(null)}
+              className="z-50"
+            >
+              <div className="p-1 min-w-[245px] text-xs">
+                <div className="flex items-center justify-between pb-1.5 border-b border-gray-200">
+                  <span className="font-bold text-red-600 text-sm">
+                    Thửa #{soThua}
+                  </span>
+                  <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold text-[11px] border border-amber-200">
+                    Tờ bản đồ #{soTo}
                   </span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-500">Loại đất:</span>
-                  <span className="font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                    {selectedParcel.properties.KHLOAIDAT || selectedParcel.properties.MDSD2003 || 'Chưa xác định'}
-                  </span>
-                </div>
-                {selectedParcel.properties.DIADANH && (
-                  <div className="flex justify-between items-start gap-1">
-                    <span className="text-gray-500 whitespace-nowrap">Chủ / Địa danh:</span>
-                    <span className="font-semibold text-gray-800 text-right">
-                      {selectedParcel.properties.DIADANH}
-                    </span>
-                  </div>
-                )}
-                {selectedParcel.properties.DaCapGCN !== undefined && (
+                <div className="space-y-1.5 mt-2">
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-500">Cấp GCN:</span>
-                    <span className="text-[11px] text-gray-700">
-                      {selectedParcel.properties.DaCapGCN === 1 ? '✅ Đã cấp GCN' : 'Chưa cấp GCN'}
+                    <span className="text-gray-500">Diện tích:</span>
+                    <span className="font-bold text-emerald-600 text-sm">
+                      {Number(dienTich || 0).toLocaleString('vi-VN')} m²
                     </span>
                   </div>
-                )}
-                <div className="text-[10px] text-gray-500 pt-1.5 border-t border-gray-100 flex items-center justify-between">
-                  <span>📍 Cam An Nam, Cam Lâm</span>
-                  <span className="text-gray-400">#ID: {selectedParcel.properties.ID}</span>
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="text-gray-500 whitespace-nowrap">Mã loại đất:</span>
+                    <span className="font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                      {maLoaiDat}
+                    </span>
+                  </div>
+                  {tenLoaiDat && (
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-gray-500 whitespace-nowrap">Mục đích SDĐ:</span>
+                      <span className="font-medium text-gray-800 text-right">
+                        {tenLoaiDat}
+                      </span>
+                    </div>
+                  )}
+                  {tenChu && (
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-gray-500 whitespace-nowrap">Chủ sử dụng:</span>
+                      <span className="font-bold text-slate-900 text-right">
+                        {tenChu}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500">Pháp lý GCN:</span>
+                    <span className={`text-[11px] font-semibold ${daCapGcn ? 'text-emerald-700' : 'text-gray-600'}`}>
+                      {daCapGcn ? '✅ Đã cấp GCN' : 'Chưa cập nhật GCN'}
+                    </span>
+                  </div>
+                  {p._planningZone && (
+                    <div className="mt-2 pt-2 border-t-2 border-dashed border-orange-200 bg-orange-50/70 -mx-1 px-2 py-1.5 rounded-lg space-y-1">
+                      <div className="font-bold text-orange-800 text-[11px] flex items-center justify-between">
+                        <span>📐 Quy hoạch 1/500 tại thửa này:</span>
+                        {p._planningZone.KyHieuLo && (
+                          <span className="bg-orange-600 text-white px-1.5 py-0.2 rounded text-[10px]">
+                            Lô {p._planningZone.KyHieuLo}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 font-bold text-gray-900">
+                        <span
+                          className="w-3 h-3 rounded-full inline-block border border-gray-400 shrink-0"
+                          style={{ backgroundColor: p._planningZone.MauSac || '#f97316' }}
+                        />
+                        <span>{p._planningZone.TenQuyHoach || 'Đất quy hoạch'}</span>
+                      </div>
+                      {(p._planningZone.MatDoXD || p._planningZone.TangCao || p._planningZone.HeSoSDD) && (
+                        <div className="grid grid-cols-3 gap-1 bg-white p-1 rounded border border-orange-200 text-center text-[10px]">
+                          <div>
+                            <div className="text-gray-500">Mật độ</div>
+                            <div className="font-bold text-slate-800">{p._planningZone.MatDoXD || '-'}</div>
+                          </div>
+                          <div className="border-x border-orange-100">
+                            <div className="text-gray-500">Tầng cao</div>
+                            <div className="font-bold text-blue-700">{p._planningZone.TangCao || '-'}</div>
+                          </div>
+                          <div>
+                            <div className="text-gray-500">Hệ số SDĐ</div>
+                            <div className="font-bold text-purple-700">{p._planningZone.HeSoSDD || '-'}</div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div className="text-[10px] text-gray-500 pt-1.5 border-t border-gray-100 flex items-center justify-between">
+                    <span>{isTd22330 ? '📍 Cam Hải Tây - Cam Lâm' : '📍 Cam An Nam, Cam Lâm'}</span>
+                    <span className="text-gray-400">Tờ {soTo} / Thửa {soThua}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          </Popup>
-        )}
+            </Popup>
+          );
+        })()}
 
         {/* Popup Ô Quy hoạch Vector (Phân khu 1 Cam Ranh & Phân khu 3.2 Diên Khánh) */}
         {selectedPlanningZone && (
@@ -1148,6 +1504,30 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
                         </span>
                       )}
                     </span>
+                  </div>
+                )}
+                {selectedPlanningZone.properties.KyHieuLo && (
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="text-gray-500 whitespace-nowrap">Ký hiệu ô quy hoạch:</span>
+                    <span className="font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                      {selectedPlanningZone.properties.KyHieuLo}
+                    </span>
+                  </div>
+                )}
+                {(selectedPlanningZone.properties.MatDoXD || selectedPlanningZone.properties.TangCao || selectedPlanningZone.properties.HeSoSDD) && (
+                  <div className="grid grid-cols-3 gap-1 bg-slate-50 p-1.5 rounded-lg border border-slate-200 text-center my-1">
+                    <div>
+                      <div className="text-[10px] text-gray-500">Mật độ XD</div>
+                      <div className="font-bold text-slate-800">{selectedPlanningZone.properties.MatDoXD || '-'}</div>
+                    </div>
+                    <div className="border-x border-slate-200">
+                      <div className="text-[10px] text-gray-500">Tầng cao</div>
+                      <div className="font-bold text-blue-700">{selectedPlanningZone.properties.TangCao || '-'}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-gray-500">Hệ số SDĐ</div>
+                      <div className="font-bold text-purple-700">{selectedPlanningZone.properties.HeSoSDD || '-'}</div>
+                    </div>
                   </div>
                 )}
                 {selectedPlanningZone.properties.TrangThai && (
@@ -1185,7 +1565,9 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
                       ? 'Phân khu 3.2 Diên Khánh'
                       : selectedPlanningZone.properties._sourceLayer === 'pk3-vector-fill'
                         ? 'Phân khu 3 (Diên Khánh - Cam Lâm)'
-                        : 'Phân khu 1 Cam Ranh'}
+                        : selectedPlanningZone.properties._sourceLayer === 'camhaitay-1500-fill'
+                          ? 'QH 1/500 Cam Hải Tây (Tiểu khu E)'
+                          : 'Phân khu 1 Cam Ranh'}
                   </span>
                 </div>
                 {selectedPlanningZone.properties.Text && (
@@ -1202,7 +1584,9 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
                       ? '📍 Diên Khánh, Khánh Hòa'
                       : selectedPlanningZone.properties._sourceLayer === 'pk3-vector-fill'
                         ? '📍 Diên Khánh – Cam Lâm'
-                        : '📍 Ven vịnh Cam Ranh'}
+                        : selectedPlanningZone.properties._sourceLayer === 'camhaitay-1500-fill'
+                          ? '📍 Cam Hải Tây, Cam Lâm'
+                          : '📍 Ven vịnh Cam Ranh'}
                   </span>
                   <span>ID: #{selectedPlanningZone.properties.ID}</span>
                 </div>
@@ -1313,31 +1697,58 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       {/* Floating Horizontal Comparison Slider (Thanh kéo trượt ngang so sánh Hiện trạng & Quy hoạch) */}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[450] max-w-[95vw] sm:max-w-2xl">
         <div className="bg-white/95 backdrop-blur-md px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl shadow-xl border border-gray-200/90 flex flex-col gap-1.5 text-xs sm:text-sm font-semibold select-none">
-          {/* Tabs chọn nhanh 3 bản đồ mới nhất trên thanh trượt ngang */}
+          {/* 3 tấm bản đồ độc lập: Bấm chọn tấm nào thì thanh trượt kéo độ mờ riêng của tấm đó (không làm tắt các tấm bên dưới) */}
           <div className="flex items-center justify-center gap-1.5 overflow-x-auto pb-1 max-w-full text-xs font-medium text-gray-600 scrollbar-none">
             <button
               type="button"
-              onClick={() => handleSelectPlanningTab('camtan_1500')}
-              className={`px-2.5 py-1 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'camtan_1500' ? 'bg-cyan-600 text-white font-bold shadow-sm' : 'hover:bg-gray-100'}`}
-              title="Quy hoạch 1/500 Cam Tân - Cam Lâm (Đa mảnh siêu nét 14K)"
+              onClick={() => handleSelectPlanningTab('camhaitay_sdd')}
+              className={`px-2.5 py-1 rounded-lg whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                activePlanningLayer === 'camhaitay_sdd'
+                  ? 'bg-orange-600 text-white font-bold shadow-sm ring-2 ring-orange-300'
+                  : opacityCamHaiTaySdd > 0
+                    ? 'bg-orange-50 text-orange-800 border border-orange-200 font-semibold hover:bg-orange-100'
+                    : 'hover:bg-gray-100 text-gray-500'
+              }`}
+              title="Chọn tấm Quy hoạch Sử dụng đất 1/500 Cam Hải Tây để kéo chỉnh độ mờ"
             >
-              QH 1/500 Cam Tân
+              <span>Cam Hải Tây (SDĐ)</span>
+              <span className={`text-[10px] px-1 py-0.2 rounded ${activePlanningLayer === 'camhaitay_sdd' ? 'bg-orange-800 text-white' : 'bg-white/80 text-gray-600'}`}>
+                {Math.round(opacityCamHaiTaySdd * 100)}%
+              </span>
             </button>
             <button
               type="button"
-              onClick={() => handleSelectPlanningTab('pk32_dienkhanh')}
-              className={`px-2.5 py-1 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'pk32_dienkhanh' ? 'bg-fuchsia-600 text-white font-bold shadow-sm' : 'hover:bg-gray-100'}`}
-              title="Quy hoạch Phân khu 3.2 Diên Khánh (638 ô Vector)"
+              onClick={() => handleSelectPlanningTab('camhaitay_gt')}
+              className={`px-2.5 py-1 rounded-lg whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                activePlanningLayer === 'camhaitay_gt'
+                  ? 'bg-red-600 text-white font-bold shadow-sm ring-2 ring-red-300'
+                  : opacityCamHaiTayGt > 0
+                    ? 'bg-red-50 text-red-800 border border-red-200 font-semibold hover:bg-red-100'
+                    : 'hover:bg-gray-100 text-gray-500'
+              }`}
+              title="Chọn tấm Mạng lưới Giao thông 1/500 Cam Hải Tây để kéo chỉnh độ mờ"
             >
-              PK 3.2 Diên Khánh
+              <span>Cam Hải Tây (Giao thông)</span>
+              <span className={`text-[10px] px-1 py-0.2 rounded ${activePlanningLayer === 'camhaitay_gt' ? 'bg-red-800 text-white' : 'bg-white/80 text-gray-600'}`}>
+                {Math.round(opacityCamHaiTayGt * 100)}%
+              </span>
             </button>
             <button
               type="button"
-              onClick={() => handleSelectPlanningTab('pk3_vector')}
-              className={`px-2.5 py-1 rounded-lg whitespace-nowrap transition-colors ${activePlanningLayer === 'pk3_vector' ? 'bg-violet-600 text-white font-bold shadow-sm' : 'hover:bg-gray-100'}`}
-              title="Quy hoạch Phân khu 3 (1.407 ô Vector)"
+              onClick={() => handleSelectPlanningTab('td_22330')}
+              className={`px-2.5 py-1 rounded-lg whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                activePlanningLayer === 'td_22330'
+                  ? 'bg-emerald-600 text-white font-bold shadow-sm ring-2 ring-emerald-300'
+                  : opacityTd22330 > 0
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold hover:bg-emerald-100'
+                    : 'hover:bg-gray-100 text-gray-500'
+              }`}
+              title="Chọn tấm Địa chính Cam Hải Tây (TD 22330) để kéo chỉnh độ mờ"
             >
-              Phân khu 3 (Vector)
+              <span>Địa chính Cam Hải Tây</span>
+              <span className={`text-[10px] px-1 py-0.2 rounded ${activePlanningLayer === 'td_22330' ? 'bg-emerald-800 text-white' : 'bg-white/80 text-gray-600'}`}>
+                {Math.round(opacityTd22330 * 100)}%
+              </span>
             </button>
           </div>
 
@@ -1759,7 +2170,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       <div className={`absolute bottom-6 left-6 z-[500] bg-white rounded-xl shadow-lg border border-gray-200 text-black transition-all duration-300 overflow-hidden flex flex-col ${isLayersCollapsed ? 'w-12 h-12' : 'w-80 sm:w-96'}`}>
         {/* Nút thu gọn / mở rộng */}
         <div className={`flex items-center ${isLayersCollapsed ? 'justify-center w-full h-full' : 'justify-between px-4 py-3 border-b border-gray-100 bg-gray-50'}`}>
-          {!isLayersCollapsed && <span className="font-bold text-gray-800">Lớp Bản đồ ({[streetMapOpacity, opacity2045, opacity2030, opacityKhuVuc1, opacityDocDuong34, opacityDc21, opacityTo40, opacityKhuVuc1Vector, opacityCamTan1500, opacityCamTanWebp, opacityPk32, opacityPk3].filter(o => o > 0).length} đang bật)</span>}
+          {!isLayersCollapsed && <span className="font-bold text-gray-800">Lớp Bản đồ ({[streetMapOpacity, opacity2045, opacity2030, opacityTo40, opacityKhuVuc1Vector, opacityCamTan1500, opacityCamTanWebp, opacityPk32, opacityPk3, opacityCamHaiTaySdd, opacityCamHaiTayGt, opacityTd22330].filter(o => o > 0).length} đang bật)</span>}
           <button 
             onClick={() => setIsLayersCollapsed(!isLayersCollapsed)}
             className="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-200 rounded-full transition-colors"
@@ -2192,6 +2603,114 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
                     mapRef.current?.flyTo({ center: [109.10235, 12.15651], zoom: 12.6, duration: 2000 });
                   }}
                   className="px-2 py-0.5 bg-violet-50 text-violet-700 hover:bg-violet-100 rounded text-[10px] font-medium border border-violet-200 flex items-center gap-0.5"
+                >
+                  📍 Định vị
+                </button>
+              </div>
+            </div>
+
+            {/* 13. Bản đồ 1: Quy hoạch Sử dụng đất 1/500 Cam Hải Tây (282 ô) */}
+            <div className="space-y-1 pt-2.5">
+              <div className="flex justify-between items-center text-xs font-semibold">
+                <span className="flex items-center gap-1 text-gray-800">
+                  🟧 <span>1/500 Cam Hải Tây (SDĐ)</span>
+                  <span className="text-[10px] font-bold text-orange-700 bg-orange-50 px-1 py-0.5 rounded border border-orange-200">282 ô đất</span>
+                </span>
+                <span className="text-orange-600 font-bold">{Math.round(opacityCamHaiTaySdd * 100)}%</span>
+              </div>
+              <input 
+                type="range" 
+                min="0" max="1" step="0.05"
+                value={opacityCamHaiTaySdd}
+                onChange={e => setOpacityCamHaiTaySdd(parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-600"
+              />
+              <div className="flex justify-between items-center text-[10px]">
+                <div className="flex gap-2 text-gray-500">
+                  <button type="button" onClick={() => setOpacityCamHaiTaySdd(0)} className="hover:underline">0%</button>
+                  <button type="button" onClick={() => setOpacityCamHaiTaySdd(0.5)} className="hover:underline">50%</button>
+                  <button type="button" onClick={() => setOpacityCamHaiTaySdd(1)} className="hover:underline">100%</button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (opacityCamHaiTaySdd === 0) setOpacityCamHaiTaySdd(0.95);
+                    setActivePlanningLayer('camhaitay_sdd');
+                    mapRef.current?.flyTo({ center: [109.14082, 12.10621], zoom: 15.4, duration: 2000 });
+                  }}
+                  className="px-2 py-0.5 bg-orange-50 text-orange-700 hover:bg-orange-100 rounded text-[10px] font-medium border border-orange-200 flex items-center gap-0.5"
+                >
+                  📍 Định vị
+                </button>
+              </div>
+            </div>
+
+            {/* 14. Bản đồ 2: Mạng lưới Giao thông đường bộ 1/500 Cam Hải Tây (3.929 đoạn) */}
+            <div className="space-y-1 pt-2.5">
+              <div className="flex justify-between items-center text-xs font-semibold">
+                <span className="flex items-center gap-1 text-gray-800">
+                  🛣️ <span>1/500 Cam Hải Tây (Giao thông)</span>
+                  <span className="text-[10px] font-bold text-red-700 bg-red-50 px-1 py-0.5 rounded border border-red-200">3.929 tuyến</span>
+                </span>
+                <span className="text-red-600 font-bold">{Math.round(opacityCamHaiTayGt * 100)}%</span>
+              </div>
+              <input 
+                type="range" 
+                min="0" max="1" step="0.05"
+                value={opacityCamHaiTayGt}
+                onChange={e => setOpacityCamHaiTayGt(parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-red-600"
+              />
+              <div className="flex justify-between items-center text-[10px]">
+                <div className="flex gap-2 text-gray-500">
+                  <button type="button" onClick={() => setOpacityCamHaiTayGt(0)} className="hover:underline">0%</button>
+                  <button type="button" onClick={() => setOpacityCamHaiTayGt(0.5)} className="hover:underline">50%</button>
+                  <button type="button" onClick={() => setOpacityCamHaiTayGt(1)} className="hover:underline">100%</button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (opacityCamHaiTayGt === 0) setOpacityCamHaiTayGt(1);
+                    setActivePlanningLayer('camhaitay_gt');
+                    mapRef.current?.flyTo({ center: [109.14082, 12.10621], zoom: 15.4, duration: 2000 });
+                  }}
+                  className="px-2 py-0.5 bg-red-50 text-red-700 hover:bg-red-100 rounded text-[10px] font-medium border border-red-200 flex items-center gap-0.5"
+                >
+                  📍 Định vị
+                </button>
+              </div>
+            </div>
+
+            {/* 15. Bản đồ 3: Địa chính Thửa đất Cam Hải Tây - TD 22330 (83.509 thửa) */}
+            <div className="space-y-1 pt-2.5">
+              <div className="flex justify-between items-center text-xs font-semibold">
+                <span className="flex items-center gap-1 text-gray-800">
+                  🟩 <span>Địa chính Cam Hải Tây (TD 22330)</span>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200">83.509 thửa</span>
+                </span>
+                <span className="text-emerald-600 font-bold">{Math.round(opacityTd22330 * 100)}%</span>
+              </div>
+              <input 
+                type="range" 
+                min="0" max="1" step="0.05"
+                value={opacityTd22330}
+                onChange={e => setOpacityTd22330(parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+              />
+              <div className="flex justify-between items-center text-[10px]">
+                <div className="flex gap-2 text-gray-500">
+                  <button type="button" onClick={() => setOpacityTd22330(0)} className="hover:underline">0%</button>
+                  <button type="button" onClick={() => setOpacityTd22330(0.5)} className="hover:underline">50%</button>
+                  <button type="button" onClick={() => setOpacityTd22330(1)} className="hover:underline">100%</button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (opacityTd22330 === 0) setOpacityTd22330(0.92);
+                    setActivePlanningLayer('td_22330');
+                    mapRef.current?.flyTo({ center: [109.14082, 12.10621], zoom: 16.2, duration: 2000 });
+                  }}
+                  className="px-2 py-0.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded text-[10px] font-medium border border-emerald-200 flex items-center gap-0.5"
                 >
                   📍 Định vị
                 </button>
