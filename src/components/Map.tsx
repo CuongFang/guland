@@ -1208,23 +1208,116 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
           <Layer
             id="camhaitay-1500-label"
             type="symbol"
-            minzoom={15.2}
+            minzoom={15.0}
+            maxzoom={17.0}
             layout={{
               visibility: opacityCamHaiTaySdd > 0 ? 'visible' : 'none',
               'text-font': ['Noto Sans Regular'],
-              'text-field': [
-                'concat',
-                ['get', 'KyHieuLo'],
-                '\n',
-                ['get', 'TenQuyHoach']
-              ],
+              'text-field': ['get', 'TenQuyHoach'],
               'text-size': [
                 'interpolate', ['linear'], ['zoom'],
-                15.2, 9.5,
-                18, 12.5
+                15.0, 9.5,
+                16.8, 11.5
               ],
               'text-anchor': 'center',
               'text-allow-overlap': false
+            }}
+            paint={{
+              'text-color': '#0f172a',
+              'text-halo-color': '#ffffff',
+              'text-halo-width': 1.8,
+              'text-opacity': opacityCamHaiTaySdd
+            }}
+          />
+        </Source>
+
+        {/* 12B. Lớp Vòng tròn chỉ tiêu quy hoạch (Tem sử dụng đất - 247 vòng tròn từ vongtron.json) */}
+        <Source id="camhaitay-vongtron" type="geojson" data="/Map/camhaitay_vongtron.geojson">
+          {/* Viền nền tối bên dưới giúp vòng tròn nổi bật rõ trên mọi màu nền lô đất */}
+          <Layer
+            id="camhaitay-vongtron-casing"
+            type="line"
+            minzoom={14.5}
+            layout={{ visibility: opacityCamHaiTaySdd > 0 ? 'visible' : 'none' }}
+            paint={{
+              'line-color': '#0f172a',
+              'line-width': [
+                'interpolate', ['linear'], ['zoom'],
+                14.5, 1.6,
+                16.5, 2.8,
+                19, 4.2
+              ],
+              'line-opacity': opacityCamHaiTaySdd * 0.85
+            }}
+          />
+          {/* Nét vẽ vòng tròn & thanh chia 6 ngăn chuẩn bản vẽ CAD */}
+          <Layer
+            id="camhaitay-vongtron-line"
+            type="line"
+            minzoom={14.5}
+            layout={{ visibility: opacityCamHaiTaySdd > 0 ? 'visible' : 'none' }}
+            paint={{
+              'line-color': '#ffffff',
+              'line-width': [
+                'interpolate', ['linear'], ['zoom'],
+                14.5, 0.8,
+                16.5, 1.5,
+                19, 2.4
+              ],
+              'line-opacity': opacityCamHaiTaySdd
+            }}
+          />
+        </Source>
+
+        {/* 12C. Lớp Nhãn chỉ tiêu quy hoạch bên trong Vòng tròn (1.293 nhãn từ nhan.json) */}
+        <Source id="camhaitay-nhan" type="geojson" data="/Map/camhaitay_nhan.geojson">
+          {/* Nhãn Ký hiệu lô đất ở ngăn trên cùng của vòng tròn (OHT-001, P-15, CX-15...) */}
+          <Layer
+            id="camhaitay-nhan-header"
+            type="symbol"
+            minzoom={15.2}
+            filter={['==', ['get', 'hdr'], 1]}
+            layout={{
+              visibility: opacityCamHaiTaySdd > 0 ? 'visible' : 'none',
+              'text-font': ['Noto Sans Regular'],
+              'text-field': ['get', 't'],
+              'text-size': [
+                'interpolate', ['exponential', 1.55], ['zoom'],
+                15.2, 8.5,
+                17.0, ['*', ['max', ['get', 'h'], 1.1], 4.8],
+                19.0, ['*', ['max', ['get', 'h'], 1.1], 9.2],
+                21.0, ['*', ['max', ['get', 'h'], 1.1], 17.5]
+              ],
+              'text-anchor': 'center',
+              'text-allow-overlap': ['step', ['zoom'], false, 16.8, true],
+              'text-ignore-placement': ['step', ['zoom'], false, 16.8, true]
+            }}
+            paint={{
+              'text-color': '#b91c1c',
+              'text-halo-color': '#ffffff',
+              'text-halo-width': 2.0,
+              'text-opacity': opacityCamHaiTaySdd
+            }}
+          />
+          {/* Nhãn các thông số Diện tích, Mật độ XD, Tầng cao, Hệ số SDĐ trong 4 ngăn dưới của vòng tròn */}
+          <Layer
+            id="camhaitay-nhan-values"
+            type="symbol"
+            minzoom={17.0}
+            filter={['==', ['get', 'hdr'], 0]}
+            layout={{
+              visibility: opacityCamHaiTaySdd > 0 ? 'visible' : 'none',
+              'text-font': ['Noto Sans Regular'],
+              'text-field': ['get', 't'],
+              'text-size': [
+                'interpolate', ['exponential', 1.55], ['zoom'],
+                17.0, ['*', ['max', ['get', 'h'], 1.0], 4.2],
+                19.0, ['*', ['max', ['get', 'h'], 1.0], 8.2],
+                21.0, ['*', ['max', ['get', 'h'], 1.0], 15.5]
+              ],
+              'text-anchor': 'center',
+              'text-allow-overlap': true,
+              'text-ignore-placement': true
             }}
             paint={{
               'text-color': '#0f172a',
