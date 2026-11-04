@@ -1069,85 +1069,37 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
           maxzoom={18}
           tolerance={0.35}
         >
-          {/* Lớp Fill tô màu đậm theo loại đất KHLOAIDAT */}
+          {/* Lớp Fill trong suốt (không tô màu ô đất, chỉ giữ vùng tương tác để click xem thông tin thửa) */}
           <Layer
             id="cadastre-td22330-fill"
             type="fill"
             minzoom={12}
             layout={{ visibility: opacityTd22330 > 0 ? 'visible' : 'none' }}
             paint={{
-              'fill-color': [
-                'match',
-                ['get', 'ld'],
-                'ODT', '#dc2626',
-                'ODT+LNC', '#ef4444',
-                'ODT+BHK', '#f97316',
-                'ODT+CLN', '#f97316',
-                'ONT', '#e11d48',
-                'ONT+ONT', '#e11d48',
-                'ONT+LNQ', '#f43f5e',
-                'ONT+LNK', '#fb7185',
-                'ONT+CLN', '#fb7185',
-                'ONT+BHK', '#f472b6',
-                'ONT+LUK', '#f472b6',
-                'ONT+LUC', '#f472b6',
-                'CLN', '#d97706',
-                'LNK', '#f59e0b',
-                'LNQ+BHK', '#f59e0b',
-                'BHK', '#ca8a04',
-                'HNK', '#eab308',
-                'NHK', '#eab308',
-                'NKH', '#eab308',
-                'LUC', '#65a30d',
-                'LUK', '#84cc16',
-                'RST', '#15803d',
-                'RSX', '#16a34a',
-                'RSM', '#15803d',
-                'NTS', '#0284c7',
-                'TSL', '#0369a1',
-                'LMU', '#38bdf8',
-                'DGT', '#facc15',
-                'DTL', '#0284c7',
-                'SON', '#0369a1',
-                'MNC', '#0284c7',
-                'BCS', '#94a3b8',
-                'CSD', '#94a3b8',
-                'NTD', '#64748b',
-                'TSC', '#9333ea',
-                'CQP', '#7e22ce',
-                'SKC', '#7c3aed',
-                'SKK', '#6d28d9',
-                'DGD', '#a855f7',
-                'DCH', '#c026d3',
-                'TON', '#b91c1c',
-                'TIN', '#b91c1c',
-                'DCS', '#b91c1c',
-                'DKV', '#10b981',
-                'DNL', '#6366f1',
-                '#cbd5e1'
-              ],
-              'fill-opacity': opacityTd22330 * 0.82
+              'fill-color': '#0077ff',
+              'fill-opacity': 0.01
             }}
           />
-          {/* Lớp Viền ranh giới thửa đất sắc nét */}
+          {/* Lớp Viền ranh giới thửa đất: đường kẻ mảnh màu xanh dương */}
           <Layer
             id="cadastre-td22330-line"
             type="line"
-            minzoom={13.5}
+            minzoom={12}
             layout={{ visibility: opacityTd22330 > 0 ? 'visible' : 'none' }}
             paint={{
-              'line-color': '#ffffff',
+              'line-color': '#0077ff',
               'line-width': [
                 'interpolate', ['linear'], ['zoom'],
-                13.5, 0.45,
-                15.5, 1.0,
-                17.5, 1.7,
-                20, 2.5
+                12, 0.3,
+                14, 0.5,
+                16, 0.75,
+                18, 1.0,
+                20, 1.25
               ],
               'line-opacity': opacityTd22330
             }}
           />
-          {/* Lớp Nhãn Số thửa + Loại đất khi phóng to */}
+          {/* Lớp Nhãn Số thửa + Loại đất (+ Tên chủ khi zoom sát >= 17.8) */}
           <Layer
             id="cadastre-td22330-label"
             type="symbol"
@@ -1156,16 +1108,39 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
               visibility: opacityTd22330 > 0 ? 'visible' : 'none',
               'text-font': ['Noto Sans Regular'],
               'text-field': [
-                'concat',
-                ['to-string', ['get', 'th']],
-                '\n',
-                ['get', 'ld']
+                'step',
+                ['zoom'],
+                [
+                  'concat',
+                  ['to-string', ['get', 'th']],
+                  '\n',
+                  ['get', 'ld']
+                ],
+                17.8,
+                [
+                  'case',
+                  ['!=', ['get', 'tc'], ''],
+                  [
+                    'concat',
+                    ['to-string', ['get', 'th']],
+                    ' (',
+                    ['get', 'ld'],
+                    ')\n',
+                    ['get', 'tc']
+                  ],
+                  [
+                    'concat',
+                    ['to-string', ['get', 'th']],
+                    '\n',
+                    ['get', 'ld']
+                  ]
+                ]
               ],
               'text-size': [
                 'interpolate', ['linear'], ['zoom'],
                 16.2, 9,
-                18, 11.5,
-                20, 13.5
+                18, 11,
+                20, 13
               ],
               'text-anchor': 'center',
               'text-allow-overlap': false
@@ -1556,7 +1531,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
                     </div>
                   )}
                   <div className="text-[10px] text-gray-500 pt-1.5 border-t border-gray-100 flex items-center justify-between">
-                    <span>{isTd22330 ? '📍 Cam Hải Tây - Cam Lâm' : '📍 Cam An Nam, Cam Lâm'}</span>
+                    <span>{isTd22330 ? `📍 ${p.dd || 'Xã Cam Lâm'} (Cam Hải Tây)` : '📍 Cam An Nam, Cam Lâm'}</span>
                     <span className="text-gray-400">Tờ {soTo} / Thửa {soThua}</span>
                   </div>
                 </div>

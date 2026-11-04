@@ -43,3 +43,4 @@ next-env.d.ts
 # raw large GIS source files (>50MB)
 public/Map/*.kmz
 public/Map/TD_22330.shp.geojson
+public/Map/cam hai tay.geojson
