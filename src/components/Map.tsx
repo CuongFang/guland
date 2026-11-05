@@ -28,8 +28,8 @@ type Property = {
   google_map_link?: string;
 };
 
-export type LayerKey = '2030' | '2045' | 'khuvuc1' | 'docduong34' | 'dc21' | 'camtan_webp';
-export type PlanningLayerType = LayerKey | 'to40' | 'khuvuc1_vector' | 'camtan_1500' | 'pk32_dienkhanh' | 'pk3_vector' | 'camhaitay_sdd' | 'camhaitay_gt' | 'td_22330' | 'qhc_camlam_2045';
+export type LayerKey = '2030' | '2045' | 'khuvuc1' | 'docduong34' | 'dc21' | 'camtan_webp' | 'camlam_2030';
+export type PlanningLayerType = LayerKey | 'to40' | 'khuvuc1_vector' | 'camtan_1500' | 'pk32_dienkhanh' | 'pk3_vector' | 'camhaitay_sdd' | 'camhaitay_gt' | 'td_22330' | 'qhc_camlam_2045' | 'qhc_camlam_2045_gt_bo' | 'qhc_camlam_2045_gt_sat';
 
 const LOAI_DAT_NAMES: Record<string, string> = {
   'ODT': 'Đất ở tại đô thị',
@@ -81,7 +81,7 @@ const LOAI_DAT_NAMES: Record<string, string> = {
 export type QuadCoords = [[number, number], [number, number], [number, number], [number, number]];
 
 const isCalibratableLayer = (layer: PlanningLayerType): layer is LayerKey => {
-  return layer === '2030' || layer === '2045' || layer === 'khuvuc1' || layer === 'docduong34' || layer === 'dc21' || layer === 'camtan_webp';
+  return layer === '2030' || layer === '2045' || layer === 'khuvuc1' || layer === 'docduong34' || layer === 'dc21' || layer === 'camtan_webp' || layer === 'camlam_2030';
 };
 
 const BASE_MAP_STYLE: any = {
@@ -146,6 +146,12 @@ export const DEFAULT_COORDS: Record<LayerKey, QuadCoords> = {
     [109.11479040, 12.10606002], // Bottom-Right (Đông Nam)
     [109.09220754, 12.10606002], // Bottom-Left (Tây Nam)
   ],
+  'camlam_2030': [
+    [108.93957001, 12.21491272], // Top-Left (Tây Bắc)
+    [109.22624687, 12.21491272], // Top-Right (Đông Bắc)
+    [109.22624687, 11.93583746], // Bottom-Right (Đông Nam)
+    [108.93957001, 11.93583746], // Bottom-Left (Tây Nam)
+  ],
 };
 
 export default function MapLibreWrapper({ properties = [], searchLocation }: { properties?: Property[], searchLocation?: [number, number] | null }) {
@@ -170,6 +176,9 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
   const [opacityPk3, setOpacityPk3] = useState(0); // Quy hoạch Phân khu 3 (1.407 lô - GeoJSON)
   const [opacityTd22330, setOpacityTd22330] = useState(0); // Tạm ẩn: Địa chính Cam Hải Tây - TD 22330 (83.509 thửa)
   const [opacityQhcCamLam2045, setOpacityQhcCamLam2045] = useState(0.75); // Quy hoạch chung Đô thị mới Cam Lâm 2045 (1.438 ô - QĐ 205/QĐ-TTg)
+  const [opacityCamlam2030, setOpacityCamlam2030] = useState(0); // Điều chỉnh Quy hoạch Sử dụng đất đến năm 2030 huyện Cam Lâm (WebP 8K từ KMZ)
+  const [opacityQhcCamLamGtBo, setOpacityQhcCamLamGtBo] = useState(1); // Mạng lưới Giao thông Đường bộ QHC Cam Lâm 2045 (32.252 đoạn)
+  const [opacityQhcCamLamGtSat, setOpacityQhcCamLamGtSat] = useState(1); // Mạng lưới Giao thông Đường sắt QHC Cam Lâm 2045 (684 đoạn)
   const [opacityCamHaiTaySdd, setOpacityCamHaiTaySdd] = useState(0); // Tạm ẩn: QH 1/500 Cam Hải Tây - Sử dụng đất (282 ô)
   const [opacityCamHaiTayGt, setOpacityCamHaiTayGt] = useState(0); // Tạm ẩn: QH 1/500 Cam Hải Tây - Giao thông (3.929 đoạn)
 
@@ -250,6 +259,9 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       case 'camhaitay_gt': return 'QH 1/500 Cam Hải Tây - Mạng lưới Giao thông';
       case 'td_22330': return 'Địa chính Cam Hải Tây - TD 22330 (83.509 thửa)';
       case 'qhc_camlam_2045': return 'QHC Đô thị mới Cam Lâm 2045 (QĐ 205/QĐ-TTg)';
+      case 'camlam_2030': return 'ĐCQH Sử dụng đất đến năm 2030 huyện Cam Lâm';
+      case 'qhc_camlam_2045_gt_bo': return 'QHC Cam Lâm 2045 - Mạng lưới Giao thông Đường bộ';
+      case 'qhc_camlam_2045_gt_sat': return 'QHC Cam Lâm 2045 - Mạng lưới Giao thông Đường sắt';
     }
   };
 
@@ -261,6 +273,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       'docduong34': 'planning-docduong34',
       'dc21': 'planning-dc21',
       'camtan_webp': 'planning-camtan-webp',
+      'camlam_2030': 'planning-camlam-2030',
     };
     if (mapRef.current) {
       const src = mapRef.current.getSource(sourceIdMap[layerKey]) as any;
@@ -450,11 +463,13 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
     if (opacityKhuVuc1Vector > 0) ids.push('khuvuc1-vector-fill');
     if (opacityPk32 > 0) ids.push('pk32-dienkhanh-fill');
     if (opacityPk3 > 0) ids.push('pk3-vector-fill');
+    if (opacityQhcCamLamGtSat > 0) ids.push('qhc-camlam-2045-gt-sat-line');
+    if (opacityQhcCamLamGtBo > 0) ids.push('qhc-camlam-2045-gt-bo-line');
     if (opacityQhcCamLam2045 > 0) ids.push('qhc-camlam-2045-fill');
     if (opacityCamHaiTaySdd > 0) ids.push('camhaitay-1500-fill');
     if (opacityTd22330 > 0) ids.push('cadastre-td22330-fill');
     return ids;
-  }, [opacityTo40, opacityKhuVuc1Vector, opacityPk32, opacityPk3, opacityQhcCamLam2045, opacityCamHaiTaySdd, opacityTd22330]);
+  }, [opacityTo40, opacityKhuVuc1Vector, opacityPk32, opacityPk3, opacityQhcCamLamGtSat, opacityQhcCamLamGtBo, opacityQhcCamLam2045, opacityCamHaiTaySdd, opacityTd22330]);
 
   const defaultCenter = properties.length > 0 && properties[0].lat && properties[0].lng
     ? { longitude: properties[0].lng, latitude: properties[0].lat }
@@ -480,6 +495,9 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       case 'pk32_dienkhanh': return opacityPk32;
       case 'pk3_vector': return opacityPk3;
       case 'qhc_camlam_2045': return opacityQhcCamLam2045;
+      case 'camlam_2030': return opacityCamlam2030;
+      case 'qhc_camlam_2045_gt_bo': return opacityQhcCamLamGtBo;
+      case 'qhc_camlam_2045_gt_sat': return opacityQhcCamLamGtSat;
       case 'camhaitay_sdd': return opacityCamHaiTaySdd;
       case 'camhaitay_gt': return opacityCamHaiTayGt;
       case 'td_22330': return opacityTd22330;
@@ -501,6 +519,9 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       case 'pk32_dienkhanh': setOpacityPk32(val); break;
       case 'pk3_vector': setOpacityPk3(val); break;
       case 'qhc_camlam_2045': setOpacityQhcCamLam2045(val); break;
+      case 'camlam_2030': setOpacityCamlam2030(val); break;
+      case 'qhc_camlam_2045_gt_bo': setOpacityQhcCamLamGtBo(val); break;
+      case 'qhc_camlam_2045_gt_sat': setOpacityQhcCamLamGtSat(val); break;
       case 'camhaitay_sdd': setOpacityCamHaiTaySdd(val); break;
       case 'camhaitay_gt': setOpacityCamHaiTayGt(val); break;
       case 'td_22330': setOpacityTd22330(val); break;
@@ -525,7 +546,10 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       case 'camtan_webp': if (opacityCamTanWebp === 0) setOpacityCamTanWebp(0.85); break;
       case 'pk32_dienkhanh': if (opacityPk32 === 0) setOpacityPk32(0.85); break;
       case 'pk3_vector': if (opacityPk3 === 0) setOpacityPk3(0.85); break;
-      case 'qhc_camlam_2045': if (opacityQhcCamLam2045 === 0) setOpacityQhcCamLam2045(0.7); break;
+      case 'qhc_camlam_2045': if (opacityQhcCamLam2045 === 0) setOpacityQhcCamLam2045(0.75); break;
+      case 'camlam_2030': if (opacityCamlam2030 === 0) setOpacityCamlam2030(0.85); break;
+      case 'qhc_camlam_2045_gt_bo': if (opacityQhcCamLamGtBo === 0) setOpacityQhcCamLamGtBo(1); break;
+      case 'qhc_camlam_2045_gt_sat': if (opacityQhcCamLamGtSat === 0) setOpacityQhcCamLamGtSat(1); break;
       case 'camhaitay_sdd': if (opacityCamHaiTaySdd === 0) setOpacityCamHaiTaySdd(0.75); break;
       case 'camhaitay_gt': if (opacityCamHaiTayGt === 0) setOpacityCamHaiTayGt(0.9); break;
       case 'td_22330': if (opacityTd22330 === 0) setOpacityTd22330(0.65); break;
@@ -568,7 +592,10 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       case 'pk3_vector':
         mapRef.current?.flyTo({ center: [109.10235, 12.15651], zoom: 12.6, duration: 1500 });
         break;
-      case 'qhc_camlam_2045': {
+      case 'qhc_camlam_2045':
+      case 'camlam_2030':
+      case 'qhc_camlam_2045_gt_bo':
+      case 'qhc_camlam_2045_gt_sat': {
         const center = mapRef.current?.getCenter();
         const inCamLam = center && center.lat > 11.93 && center.lat < 12.22 && center.lng > 108.94 && center.lng < 109.23;
         if (!inCamLam) {
@@ -628,6 +655,9 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
         mapRef.current?.flyTo({ center: [109.14082, 12.10621], zoom: 16.0, duration: 2000 });
         break;
       case 'qhc_camlam_2045':
+      case 'camlam_2030':
+      case 'qhc_camlam_2045_gt_bo':
+      case 'qhc_camlam_2045_gt_sat':
         mapRef.current?.flyTo({ center: [109.135, 12.085], zoom: 13.0, duration: 2000 });
         break;
     }
@@ -671,8 +701,16 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
           });
         return;
       }
-      // 2. Ô quy hoạch phân khu 1 Cam Ranh hoặc Phân khu 3.2 Diên Khánh
-      const zone = features.find((f: any) => f.layer.id === 'camhaitay-1500-fill' || f.layer.id === 'qhc-camlam-2045-fill' || f.layer.id === 'khuvuc1-vector-fill' || f.layer.id === 'pk32-dienkhanh-fill' || f.layer.id === 'pk3-vector-fill');
+      // 2. Tuyến giao thông đường sắt / đường bộ hoặc Ô quy hoạch Vector
+      const zone = features.find((f: any) =>
+        f.layer.id === 'qhc-camlam-2045-gt-sat-line' ||
+        f.layer.id === 'qhc-camlam-2045-gt-bo-line' ||
+        f.layer.id === 'camhaitay-1500-fill' ||
+        f.layer.id === 'qhc-camlam-2045-fill' ||
+        f.layer.id === 'khuvuc1-vector-fill' ||
+        f.layer.id === 'pk32-dienkhanh-fill' ||
+        f.layer.id === 'pk3-vector-fill'
+      );
       if (zone) {
         setSelectedParcel(null);
         setSelectedPlanningZone({
@@ -944,7 +982,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
             layout={{ visibility: opacityKhuVuc1Vector > 0 ? 'visible' : 'none' }}
             paint={{ 
               'fill-color': ['get', 'MauSac'], 
-              'fill-opacity': opacityKhuVuc1Vector * 0.65 
+              'fill-opacity': opacityKhuVuc1Vector 
             }} 
           />
           {/* Lớp Viền ranh giới quy hoạch */}
@@ -1013,7 +1051,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
             layout={{ visibility: opacityPk32 > 0 ? 'visible' : 'none' }}
             paint={{
               'fill-color': ['get', 'MauSac'],
-              'fill-opacity': opacityPk32 * 0.88
+              'fill-opacity': opacityPk32
             }}
           />
           <Layer
@@ -1064,7 +1102,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
             layout={{ visibility: opacityPk3 > 0 ? 'visible' : 'none' }}
             paint={{
               'fill-color': ['get', 'MauSac'],
-              'fill-opacity': opacityPk3 * 0.88
+              'fill-opacity': opacityPk3
             }}
           />
           <Layer
@@ -1200,6 +1238,24 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
           />
         </Source>
 
+        {/* 11A. Lớp Bản đồ Điều chỉnh Quy hoạch Sử dụng đất đến năm 2030 huyện Cam Lâm (WebP 8K trích xuất từ KMZ L5) */}
+        <Source
+          id="planning-camlam-2030"
+          type="image"
+          url="/Map/dc_qhsdd_2030_camlam.webp"
+          coordinates={layerCoords['camlam_2030']}
+        >
+          <Layer
+            id="planning-layer-camlam-2030"
+            type="raster"
+            layout={{ visibility: opacityCamlam2030 > 0 ? 'visible' : 'none' }}
+            paint={{
+              'raster-opacity': opacityCamlam2030,
+              'raster-fade-duration': 0
+            }}
+          />
+        </Source>
+
         {/* 11B. Lớp Bản đồ Quy hoạch Chung Đô thị mới Cam Lâm đến năm 2045 (1.438 ô quy hoạch - QĐ 205/QĐ-TTg) */}
         <Source id="qhc-camlam-2045" type="geojson" data="/Map/qhc_camlam_2045.geojson?v=qhc10k" tolerance={0.3}>
           <Layer
@@ -1208,7 +1264,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
             layout={{ visibility: opacityQhcCamLam2045 > 0 ? 'visible' : 'none' }}
             paint={{
               'fill-color': ['get', 'MauSac'],
-              'fill-opacity': opacityQhcCamLam2045 * 0.85
+              'fill-opacity': opacityQhcCamLam2045
             }}
           />
           <Layer
@@ -1223,7 +1279,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
                 14, 1.0,
                 17, 1.8
               ],
-              'line-opacity': opacityQhcCamLam2045 * 0.9
+              'line-opacity': opacityQhcCamLam2045
             }}
           />
           <Layer
@@ -1252,6 +1308,58 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
           />
         </Source>
 
+        {/* 11C. Lớp Mạng lưới Giao thông Đường bộ - QHC Cam Lâm 2045 (32.252 đoạn - maHTML QHC10k) */}
+        <Source id="qhc-camlam-2045-gt-bo" type="geojson" data="/Map/qhc_camlam_2045_gt_duongbo.geojson" tolerance={0.3}>
+          <Layer
+            id="qhc-camlam-2045-gt-bo-line"
+            type="line"
+            layout={{ visibility: opacityQhcCamLamGtBo > 0 ? 'visible' : 'none' }}
+            paint={{
+              'line-color': ['get', 'MauSac'],
+              'line-width': [
+                'interpolate', ['linear'], ['zoom'],
+                11, 0.5,
+                13, [
+                  'match', ['get', 'phanLoai'],
+                  'HTKT_GT_Timduong', 1.2,
+                  0.9
+                ],
+                16, [
+                  'match', ['get', 'phanLoai'],
+                  'HTKT_GT_Timduong', 2.2,
+                  1.6
+                ],
+                19, [
+                  'match', ['get', 'phanLoai'],
+                  'HTKT_GT_Timduong', 3.2,
+                  2.5
+                ]
+              ],
+              'line-opacity': opacityQhcCamLamGtBo
+            }}
+          />
+        </Source>
+
+        {/* 11D. Lớp Mạng lưới Giao thông Đường sắt - QHC Cam Lâm 2045 (684 đoạn - maHTML QHC10k) */}
+        <Source id="qhc-camlam-2045-gt-sat" type="geojson" data="/Map/qhc_camlam_2045_gt_duongsat.geojson" tolerance={0.2}>
+          <Layer
+            id="qhc-camlam-2045-gt-sat-line"
+            type="line"
+            layout={{ visibility: opacityQhcCamLamGtSat > 0 ? 'visible' : 'none' }}
+            paint={{
+              'line-color': ['get', 'MauSac'],
+              'line-width': [
+                'interpolate', ['linear'], ['zoom'],
+                11, 1.4,
+                14, 2.2,
+                17, 3.4,
+                19, 4.5
+              ],
+              'line-opacity': opacityQhcCamLamGtSat
+            }}
+          />
+        </Source>
+
         {/* 12. Lớp Bản đồ Quy hoạch Sử dụng đất 1/500 Cam Hải Tây (282 ô quy hoạch - GeoJSON Vector) */}
         <Source id="camhaitay-1500-sdd" type="geojson" data="/Map/camhaitay_1500_sdd.geojson">
           <Layer
@@ -1260,7 +1368,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
             layout={{ visibility: opacityCamHaiTaySdd > 0 ? 'visible' : 'none' }}
             paint={{
               'fill-color': ['get', 'MauSac'],
-              'fill-opacity': opacityCamHaiTaySdd * 0.88
+              'fill-opacity': opacityCamHaiTaySdd
             }}
           />
           <Layer
@@ -1928,6 +2036,14 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
                     </span>
                   </div>
                 )}
+                {selectedPlanningZone.properties.ChieuDaiM !== undefined && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500">Chiều dài đoạn tuyến:</span>
+                    <span className="font-bold text-emerald-600 text-sm">
+                      {Number(selectedPlanningZone.properties.ChieuDaiM).toLocaleString('vi-VN')} m
+                    </span>
+                  </div>
+                )}
                 {selectedPlanningZone.properties.KyHieuLo && (
                   <div className="flex justify-between items-center gap-2">
                     <span className="text-gray-500 whitespace-nowrap">Ký hiệu ô quy hoạch:</span>
@@ -1991,7 +2107,11 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
                           ? 'QH 1/500 Cam Hải Tây (Tiểu khu E)'
                           : selectedPlanningZone.properties._sourceLayer === 'qhc-camlam-2045-fill'
                             ? 'QHC Đô thị mới Cam Lâm 2045 (QĐ 205/QĐ-TTg)'
-                            : 'Phân khu 1 Cam Ranh'}
+                            : selectedPlanningZone.properties._sourceLayer === 'qhc-camlam-2045-gt-bo-line'
+                              ? 'QHC Cam Lâm 2045 - Giao thông Đường bộ'
+                              : selectedPlanningZone.properties._sourceLayer === 'qhc-camlam-2045-gt-sat-line'
+                                ? 'QHC Cam Lâm 2045 - Giao thông Đường sắt'
+                                : 'Phân khu 1 Cam Ranh'}
                   </span>
                 </div>
                 {selectedPlanningZone.properties.Text && (
@@ -2010,9 +2130,11 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
                         ? '📍 Diên Khánh – Cam Lâm'
                         : selectedPlanningZone.properties._sourceLayer === 'camhaitay-1500-fill'
                           ? '📍 Cam Hải Tây, Cam Lâm'
-                          : '📍 Ven vịnh Cam Ranh'}
+                          : selectedPlanningZone.properties._sourceLayer?.startsWith('qhc-camlam-2045')
+                            ? '📍 Đô thị mới Cam Lâm, Khánh Hòa'
+                            : '📍 Ven vịnh Cam Ranh'}
                   </span>
-                  <span>ID: #{selectedPlanningZone.properties.ID}</span>
+                  <span>ID: #{selectedPlanningZone.properties.ID || selectedPlanningZone.properties.OBJECTID}</span>
                 </div>
               </div>
             </div>
@@ -2119,9 +2241,9 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       </Map>
 
       {/* Floating Horizontal Comparison Slider (Thanh kéo trượt ngang so sánh Hiện trạng & Quy hoạch) */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[450] max-w-[95vw] sm:max-w-2xl">
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[450] max-w-[95vw] sm:max-w-3xl">
         <div className="bg-white/95 backdrop-blur-md px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl shadow-xl border border-gray-200/90 flex flex-col gap-1.5 text-xs sm:text-sm font-semibold select-none">
-          {/* 3 tấm bản đồ độc lập: Bấm chọn tấm nào thì thanh trượt kéo độ mờ riêng của tấm đó (không làm tắt các tấm bên dưới) */}
+          {/* Các tấm bản đồ Cam Lâm độc lập: Bấm chọn tấm nào thì thanh trượt kéo độ mờ riêng của tấm đó (không làm tắt các tấm bên dưới) */}
           <div className="flex items-center justify-center gap-1.5 overflow-x-auto pb-1 max-w-full text-xs font-medium text-gray-600 scrollbar-none">
             <button
               type="button"
@@ -2138,6 +2260,60 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
               <span>QHC Cam Lâm 2045</span>
               <span className={`text-[10px] px-1 py-0.2 rounded ${activePlanningLayer === 'qhc_camlam_2045' ? 'bg-indigo-800 text-white' : 'bg-white/80 text-gray-600'}`}>
                 {Math.round(opacityQhcCamLam2045 * 100)}%
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSelectPlanningTab('camlam_2030')}
+              className={`px-2.5 py-1 rounded-lg whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                activePlanningLayer === 'camlam_2030'
+                  ? 'bg-amber-600 text-white font-bold shadow-sm ring-2 ring-amber-300'
+                  : opacityCamlam2030 > 0
+                    ? 'bg-amber-50 text-amber-800 border border-amber-200 font-semibold hover:bg-amber-100'
+                    : 'hover:bg-gray-100 text-gray-500'
+              }`}
+              title="Chọn tấm Điều chỉnh Quy hoạch Sử dụng đất đến năm 2030 huyện Cam Lâm để kéo chỉnh độ mờ"
+            >
+              <span>ĐCQH SDĐ 2030 Cam Lâm</span>
+              <span className={`text-[10px] px-1 py-0.2 rounded ${activePlanningLayer === 'camlam_2030' ? 'bg-amber-800 text-white' : 'bg-white/80 text-gray-600'}`}>
+                {Math.round(opacityCamlam2030 * 100)}%
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSelectPlanningTab('qhc_camlam_2045_gt_bo')}
+              className={`px-2.5 py-1 rounded-lg whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                activePlanningLayer === 'qhc_camlam_2045_gt_bo'
+                  ? 'bg-blue-600 text-white font-bold shadow-sm ring-2 ring-blue-300'
+                  : opacityQhcCamLamGtBo > 0
+                    ? 'bg-blue-50 text-blue-800 border border-blue-200 font-semibold hover:bg-blue-100'
+                    : 'hover:bg-gray-100 text-gray-500'
+              }`}
+              title="Chọn lớp Mạng lưới Giao thông Đường bộ - QHC Cam Lâm 2045 (32.252 đoạn)"
+            >
+              <span>GT Đường bộ 2045</span>
+              <span className={`text-[10px] px-1 py-0.2 rounded ${activePlanningLayer === 'qhc_camlam_2045_gt_bo' ? 'bg-blue-800 text-white' : 'bg-white/80 text-gray-600'}`}>
+                {Math.round(opacityQhcCamLamGtBo * 100)}%
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSelectPlanningTab('qhc_camlam_2045_gt_sat')}
+              className={`px-2.5 py-1 rounded-lg whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                activePlanningLayer === 'qhc_camlam_2045_gt_sat'
+                  ? 'bg-fuchsia-700 text-white font-bold shadow-sm ring-2 ring-fuchsia-300'
+                  : opacityQhcCamLamGtSat > 0
+                    ? 'bg-fuchsia-50 text-fuchsia-800 border border-fuchsia-200 font-semibold hover:bg-fuchsia-100'
+                    : 'hover:bg-gray-100 text-gray-500'
+              }`}
+              title="Chọn lớp Mạng lưới Giao thông Đường sắt - QHC Cam Lâm 2045 (684 đoạn)"
+            >
+              <span>GT Đường sắt 2045</span>
+              <span className={`text-[10px] px-1 py-0.2 rounded ${activePlanningLayer === 'qhc_camlam_2045_gt_sat' ? 'bg-fuchsia-900 text-white' : 'bg-white/80 text-gray-600'}`}>
+                {Math.round(opacityQhcCamLamGtSat * 100)}%
               </span>
             </button>
             {/* Tạm ẩn 3 nút Cam Hải Tây (SDĐ), Cam Hải Tây (Giao thông), Địa chính Cam Hải Tây theo yêu cầu */}
@@ -2284,6 +2460,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
               <div className="text-[11px] font-bold text-gray-700 mb-1.5">Chọn lớp cần căn chỉnh:</div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
                 {[
+                  { key: 'camlam_2030', label: 'ĐCQH 2030 CL' },
                   { key: 'khuvuc1', label: 'Khu vực 1' },
                   { key: 'docduong34', label: 'Đường 3/4' },
                   { key: 'dc21', label: 'Tờ 21 (1/500)' },
@@ -2561,7 +2738,7 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
       <div className={`absolute bottom-6 left-6 z-[500] bg-white rounded-xl shadow-lg border border-gray-200 text-black transition-all duration-300 overflow-hidden flex flex-col ${isLayersCollapsed ? 'w-12 h-12' : 'w-80 sm:w-96'}`}>
         {/* Nút thu gọn / mở rộng */}
         <div className={`flex items-center ${isLayersCollapsed ? 'justify-center w-full h-full' : 'justify-between px-4 py-3 border-b border-gray-100 bg-gray-50'}`}>
-          {!isLayersCollapsed && <span className="font-bold text-gray-800">Lớp Bản đồ ({[streetMapOpacity, opacity2045, opacity2030, opacityTo40, opacityKhuVuc1Vector, opacityCamTan1500, opacityCamTanWebp, opacityPk32, opacityPk3, opacityCamHaiTaySdd, opacityCamHaiTayGt, opacityTd22330].filter(o => o > 0).length} đang bật)</span>}
+          {!isLayersCollapsed && <span className="font-bold text-gray-800">Lớp Bản đồ ({[streetMapOpacity, opacity2045, opacity2030, opacityTo40, opacityKhuVuc1Vector, opacityCamTan1500, opacityCamTanWebp, opacityPk32, opacityPk3, opacityQhcCamLam2045, opacityCamlam2030, opacityQhcCamLamGtBo, opacityQhcCamLamGtSat].filter(o => o > 0).length} đang bật)</span>}
           <button 
             onClick={() => setIsLayersCollapsed(!isLayersCollapsed)}
             className="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-200 rounded-full transition-colors"
@@ -3000,108 +3177,144 @@ export default function MapLibreWrapper({ properties = [], searchLocation }: { p
               </div>
             </div>
 
-            {/* 13. Bản đồ 1: Quy hoạch Sử dụng đất 1/500 Cam Hải Tây (282 ô) */}
+            {/* 13. Quy hoạch Chung Đô thị mới Cam Lâm đến năm 2045 (1.438 ô) */}
             <div className="space-y-1 pt-2.5">
               <div className="flex justify-between items-center text-xs font-semibold">
                 <span className="flex items-center gap-1 text-gray-800">
-                  🟧 <span>1/500 Cam Hải Tây (SDĐ)</span>
-                  <span className="text-[10px] font-bold text-orange-700 bg-orange-50 px-1 py-0.5 rounded border border-orange-200">282 ô đất</span>
+                  🏙️ <span>QHC Đô thị mới Cam Lâm 2045</span>
+                  <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1 py-0.5 rounded border border-indigo-200">1.438 ô</span>
                 </span>
-                <span className="text-orange-600 font-bold">{Math.round(opacityCamHaiTaySdd * 100)}%</span>
+                <span className="text-indigo-600 font-bold">{Math.round(opacityQhcCamLam2045 * 100)}%</span>
               </div>
               <input 
                 type="range" 
                 min="0" max="1" step="0.05"
-                value={opacityCamHaiTaySdd}
-                onChange={e => setOpacityCamHaiTaySdd(parseFloat(e.target.value))}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-600"
+                value={opacityQhcCamLam2045}
+                onChange={e => setOpacityQhcCamLam2045(parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
               />
               <div className="flex justify-between items-center text-[10px]">
                 <div className="flex gap-2 text-gray-500">
-                  <button type="button" onClick={() => setOpacityCamHaiTaySdd(0)} className="hover:underline">0%</button>
-                  <button type="button" onClick={() => setOpacityCamHaiTaySdd(0.5)} className="hover:underline">50%</button>
-                  <button type="button" onClick={() => setOpacityCamHaiTaySdd(1)} className="hover:underline">100%</button>
+                  <button type="button" onClick={() => setOpacityQhcCamLam2045(0)} className="hover:underline">0%</button>
+                  <button type="button" onClick={() => setOpacityQhcCamLam2045(0.5)} className="hover:underline">50%</button>
+                  <button type="button" onClick={() => setOpacityQhcCamLam2045(1)} className="hover:underline">100%</button>
                 </div>
                 <button
                   type="button"
                   onClick={() => {
-                    if (opacityCamHaiTaySdd === 0) setOpacityCamHaiTaySdd(0.95);
-                    setActivePlanningLayer('camhaitay_sdd');
-                    mapRef.current?.flyTo({ center: [109.14082, 12.10621], zoom: 15.4, duration: 2000 });
+                    if (opacityQhcCamLam2045 === 0) setOpacityQhcCamLam2045(0.85);
+                    setActivePlanningLayer('qhc_camlam_2045');
+                    mapRef.current?.flyTo({ center: [109.135, 12.085], zoom: 13.2, duration: 2000 });
                   }}
-                  className="px-2 py-0.5 bg-orange-50 text-orange-700 hover:bg-orange-100 rounded text-[10px] font-medium border border-orange-200 flex items-center gap-0.5"
+                  className="px-2 py-0.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded text-[10px] font-medium border border-indigo-200 flex items-center gap-0.5"
                 >
                   📍 Định vị
                 </button>
               </div>
             </div>
 
-            {/* 14. Bản đồ 2: Mạng lưới Giao thông đường bộ 1/500 Cam Hải Tây (3.929 đoạn) */}
+            {/* 14. Điều chỉnh Quy hoạch Sử dụng đất đến năm 2030 huyện Cam Lâm */}
             <div className="space-y-1 pt-2.5">
               <div className="flex justify-between items-center text-xs font-semibold">
                 <span className="flex items-center gap-1 text-gray-800">
-                  🛣️ <span>1/500 Cam Hải Tây (Giao thông)</span>
-                  <span className="text-[10px] font-bold text-red-700 bg-red-50 px-1 py-0.5 rounded border border-red-200">3.929 tuyến</span>
+                  🗺️ <span>ĐCQH SDĐ 2030 Cam Lâm</span>
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-200">KMZ 8K</span>
                 </span>
-                <span className="text-red-600 font-bold">{Math.round(opacityCamHaiTayGt * 100)}%</span>
+                <span className="text-amber-600 font-bold">{Math.round(opacityCamlam2030 * 100)}%</span>
               </div>
               <input 
                 type="range" 
                 min="0" max="1" step="0.05"
-                value={opacityCamHaiTayGt}
-                onChange={e => setOpacityCamHaiTayGt(parseFloat(e.target.value))}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-red-600"
+                value={opacityCamlam2030}
+                onChange={e => setOpacityCamlam2030(parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-amber-600"
               />
               <div className="flex justify-between items-center text-[10px]">
                 <div className="flex gap-2 text-gray-500">
-                  <button type="button" onClick={() => setOpacityCamHaiTayGt(0)} className="hover:underline">0%</button>
-                  <button type="button" onClick={() => setOpacityCamHaiTayGt(0.5)} className="hover:underline">50%</button>
-                  <button type="button" onClick={() => setOpacityCamHaiTayGt(1)} className="hover:underline">100%</button>
+                  <button type="button" onClick={() => setOpacityCamlam2030(0)} className="hover:underline">0%</button>
+                  <button type="button" onClick={() => setOpacityCamlam2030(0.5)} className="hover:underline">50%</button>
+                  <button type="button" onClick={() => setOpacityCamlam2030(1)} className="hover:underline">100%</button>
                 </div>
                 <button
                   type="button"
                   onClick={() => {
-                    if (opacityCamHaiTayGt === 0) setOpacityCamHaiTayGt(1);
-                    setActivePlanningLayer('camhaitay_gt');
-                    mapRef.current?.flyTo({ center: [109.14082, 12.10621], zoom: 15.4, duration: 2000 });
+                    if (opacityCamlam2030 === 0) setOpacityCamlam2030(0.85);
+                    setActivePlanningLayer('camlam_2030');
+                    mapRef.current?.flyTo({ center: [109.135, 12.085], zoom: 13.0, duration: 2000 });
                   }}
-                  className="px-2 py-0.5 bg-red-50 text-red-700 hover:bg-red-100 rounded text-[10px] font-medium border border-red-200 flex items-center gap-0.5"
+                  className="px-2 py-0.5 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded text-[10px] font-medium border border-amber-200 flex items-center gap-0.5"
                 >
                   📍 Định vị
                 </button>
               </div>
             </div>
 
-            {/* 15. Bản đồ 3: Địa chính Thửa đất Cam Hải Tây - TD 22330 (83.509 thửa) */}
+            {/* 15. Mạng lưới Giao thông Đường bộ - QHC Cam Lâm 2045 (32.252 đoạn) */}
             <div className="space-y-1 pt-2.5">
               <div className="flex justify-between items-center text-xs font-semibold">
                 <span className="flex items-center gap-1 text-gray-800">
-                  🟩 <span>Địa chính Cam Hải Tây (TD 22330)</span>
-                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200">83.509 thửa</span>
+                  🛣️ <span>GT Đường bộ Cam Lâm 2045</span>
+                  <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-1 py-0.5 rounded border border-blue-200">32.252 đoạn</span>
                 </span>
-                <span className="text-emerald-600 font-bold">{Math.round(opacityTd22330 * 100)}%</span>
+                <span className="text-blue-600 font-bold">{Math.round(opacityQhcCamLamGtBo * 100)}%</span>
               </div>
               <input 
                 type="range" 
                 min="0" max="1" step="0.05"
-                value={opacityTd22330}
-                onChange={e => setOpacityTd22330(parseFloat(e.target.value))}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                value={opacityQhcCamLamGtBo}
+                onChange={e => setOpacityQhcCamLamGtBo(parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
               />
               <div className="flex justify-between items-center text-[10px]">
                 <div className="flex gap-2 text-gray-500">
-                  <button type="button" onClick={() => setOpacityTd22330(0)} className="hover:underline">0%</button>
-                  <button type="button" onClick={() => setOpacityTd22330(0.5)} className="hover:underline">50%</button>
-                  <button type="button" onClick={() => setOpacityTd22330(1)} className="hover:underline">100%</button>
+                  <button type="button" onClick={() => setOpacityQhcCamLamGtBo(0)} className="hover:underline">0%</button>
+                  <button type="button" onClick={() => setOpacityQhcCamLamGtBo(0.5)} className="hover:underline">50%</button>
+                  <button type="button" onClick={() => setOpacityQhcCamLamGtBo(1)} className="hover:underline">100%</button>
                 </div>
                 <button
                   type="button"
                   onClick={() => {
-                    if (opacityTd22330 === 0) setOpacityTd22330(0.92);
-                    setActivePlanningLayer('td_22330');
-                    mapRef.current?.flyTo({ center: [109.14082, 12.10621], zoom: 16.2, duration: 2000 });
+                    if (opacityQhcCamLamGtBo === 0) setOpacityQhcCamLamGtBo(1);
+                    setActivePlanningLayer('qhc_camlam_2045_gt_bo');
+                    mapRef.current?.flyTo({ center: [109.135, 12.085], zoom: 13.5, duration: 2000 });
                   }}
-                  className="px-2 py-0.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded text-[10px] font-medium border border-emerald-200 flex items-center gap-0.5"
+                  className="px-2 py-0.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded text-[10px] font-medium border border-blue-200 flex items-center gap-0.5"
+                >
+                  📍 Định vị
+                </button>
+              </div>
+            </div>
+
+            {/* 16. Mạng lưới Giao thông Đường sắt - QHC Cam Lâm 2045 (684 đoạn) */}
+            <div className="space-y-1 pt-2.5">
+              <div className="flex justify-between items-center text-xs font-semibold">
+                <span className="flex items-center gap-1 text-gray-800">
+                  🚆 <span>GT Đường sắt Cam Lâm 2045</span>
+                  <span className="text-[10px] font-bold text-fuchsia-700 bg-fuchsia-50 px-1 py-0.5 rounded border border-fuchsia-200">684 đoạn</span>
+                </span>
+                <span className="text-fuchsia-700 font-bold">{Math.round(opacityQhcCamLamGtSat * 100)}%</span>
+              </div>
+              <input 
+                type="range" 
+                min="0" max="1" step="0.05"
+                value={opacityQhcCamLamGtSat}
+                onChange={e => setOpacityQhcCamLamGtSat(parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-fuchsia-700"
+              />
+              <div className="flex justify-between items-center text-[10px]">
+                <div className="flex gap-2 text-gray-500">
+                  <button type="button" onClick={() => setOpacityQhcCamLamGtSat(0)} className="hover:underline">0%</button>
+                  <button type="button" onClick={() => setOpacityQhcCamLamGtSat(0.5)} className="hover:underline">50%</button>
+                  <button type="button" onClick={() => setOpacityQhcCamLamGtSat(1)} className="hover:underline">100%</button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (opacityQhcCamLamGtSat === 0) setOpacityQhcCamLamGtSat(1);
+                    setActivePlanningLayer('qhc_camlam_2045_gt_sat');
+                    mapRef.current?.flyTo({ center: [109.135, 12.085], zoom: 13.5, duration: 2000 });
+                  }}
+                  className="px-2 py-0.5 bg-fuchsia-50 text-fuchsia-700 hover:bg-fuchsia-100 rounded text-[10px] font-medium border border-fuchsia-200 flex items-center gap-0.5"
                 >
                   📍 Định vị
                 </button>
