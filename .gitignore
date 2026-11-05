@@ -41,6 +41,8 @@ yarn-error.log*
 next-env.d.ts
 
 # raw large GIS source files (>50MB)
+*.rar
+*.zip
 public/Map/*.kmz
 public/Map/TD_22330.shp.geojson
 public/Map/cam hai tay.geojson

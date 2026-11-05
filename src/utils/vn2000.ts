@@ -25,3 +25,13 @@ export function convertVN2000ToWGS84(x: number, y: number, ktt: number): [number
   
   return [lat, lng]; // Leaflet cần [lat, lng]
 }
+
+export function convertWGS84ToVN2000(lng: number, lat: number, ktt: number = 108.25): { x: number; y: number } {
+  const projString = VN2000_PROJ_STRING_TEMPLATE.replace('{KTT}', ktt.toString());
+  const [easting, northing] = proj4('EPSG:4326', projString, [lng, lat]);
+  // Trong trắc địa VN: X = Northing (dọc), Y = Easting (ngang)
+  return {
+    x: Math.round(northing * 100) / 100,
+    y: Math.round(easting * 100) / 100
+  };
+}
